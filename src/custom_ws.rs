@@ -1,9 +1,10 @@
-use crate::physics_engine::PhysicsEngine;
 use crate::state::State;
-use actix::{Actor, Addr, ArbiterHandle, AsyncContext, Context, Running, StreamHandler};
+use actix::{Actor, AsyncContext, Context, Running, StreamHandler, Message};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors;
 use actix_web_actors::ws;
+use serde::{Deserialize, Serialize};
+use serde_json;
 
 /// Define HTTP actor
 pub struct Ws {
@@ -18,13 +19,23 @@ impl Actor for Ws {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Message)]
+#[rtype(result = "()")]
+pub struct GameAction {
+    w: bool,
+    a: bool,
+    s: bool,
+    d: bool,
+}
+
 /// Handler for ws::Message message
 /// Processes requests to
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(text)) => {
-                todo!();
+                let action: GameAction = serde_json::from_slice(text.as_ref()).unwrap();
+                println!("Serde: {:?}", action);
             }
             Ok(ws::Message::Ping(msg)) => ctx.pong(&web::Bytes::from(msg)),
             Ok(ws::Message::Binary(bin)) => ctx.binary(bin),

@@ -36,11 +36,11 @@ async fn main() -> std::io::Result<()> {
             // Gives app a pointer to the app state
             // app_state can be accessed through the functions registered below
             .app_data(app_state.clone())
+            // Routes Websocket connections
+            .route("/ws/", web::get().to(custom_ws::index_ws))
             // Routes file requests
             .route("/", web::get().to(default_page))
             .route("/{filename:.*}", web::get().to(index))
-            // Routes Websocket connections
-            .route("/ws/", web::get().to(custom_ws::index_ws))
     })
     .bind(("0.0.0.0", 8080))?
     .run()

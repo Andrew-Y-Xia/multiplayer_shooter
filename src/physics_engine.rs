@@ -1,4 +1,6 @@
-use actix::{Actor, Context};
+use crate::custom_ws::GameAction;
+use actix::{Actor, Context, Handler};
+use actix_web_actors::ws::Message;
 use rapier2d::prelude::*;
 
 struct CustomEventHandler;
@@ -35,7 +37,7 @@ pub struct PhysicsEngine {
 }
 
 impl PhysicsEngine {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         PhysicsEngine {
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters::default(),
@@ -52,8 +54,33 @@ impl PhysicsEngine {
             collider_set: ColliderSet::new(),
         }
     }
+
+    pub fn step(&mut self) {
+        self.physics_pipeline.step(
+            &self.gravity,
+            &self.integration_parameters,
+            &mut self.island_manager,
+            &mut self.broad_phase,
+            &mut self.narrow_phase,
+            &mut self.rigid_body_set,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            &mut self.ccd_solver,
+            &CustomPhysicsHooks {},
+            &CustomEventHandler {},
+        );
+    }
 }
 
 impl Actor for PhysicsEngine {
     type Context = Context<Self>;
+}
+
+impl Handler<GameAction> for PhysicsEngine {
+    type Result = ();
+
+    fn handle(&mut self, msg: GameAction, ctx: &mut Self::Context) -> Self::Result {
+        
+    }
 }
