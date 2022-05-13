@@ -1,5 +1,6 @@
+use crate::physics_engine::PhysicsStateResponse;
 use crate::state::State;
-use actix::{Actor, AsyncContext, Context, Running, StreamHandler, Message};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, Running, StreamHandler};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors;
 use actix_web_actors::ws;
@@ -19,13 +20,18 @@ impl Actor for Ws {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Message)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type")]
+pub enum GameInstruction {
+    JoinGame,
+    GameAction { w: bool, a: bool, s: bool, d: bool },
+}
+
+#[derive(Message, Debug)]
 #[rtype(result = "()")]
-pub struct GameAction {
-    w: bool,
-    a: bool,
-    s: bool,
-    d: bool,
+pub struct PhysicsInstruction {
+    pub game_instruction: GameInstruction,
+    pub sent_from: Addr<Ws>,
 }
 
 /// Handler for ws::Message message
@@ -34,13 +40,29 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(text)) => {
-                let action: GameAction = serde_json::from_slice(text.as_ref()).unwrap();
-                println!("Serde: {:?}", action);
+                let action: GameInstruction = serde_json::from_slice(text.as_ref()).unwrap();
+                let physics_instruction = PhysicsInstruction {
+                    game_instruction: action,
+                    sent_from: ctx.address(),
+                };
+                // println!("Serde: {:?}", physics_instruction);
+                self.state
+                    .get_ref()
+                    .get_physics_engine()
+                    .do_send(physics_instruction);
             }
             Ok(ws::Message::Ping(msg)) => ctx.pong(&web::Bytes::from(msg)),
             Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
             _ => (),
         }
+    }
+}
+
+impl Handler<PhysicsStateResponse> for Ws {
+    type Result = ();
+
+    fn handle(&mut self, msg: PhysicsStateResponse, ctx: &mut Self::Context) -> Self::Result {
+        ctx.text(serde_json::to_string(&msg).unwrap())
     }
 }
 
