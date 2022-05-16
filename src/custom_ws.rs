@@ -10,6 +10,7 @@ use serde_json;
 /// Define HTTP actor
 pub struct Ws {
     state: web::Data<State>,
+    username: String,
 }
 
 impl Actor for Ws {
@@ -22,6 +23,12 @@ impl Actor for Ws {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
+pub enum ClientInstruction {
+    JoinGame { username: String },
+    GameAction { w: bool, a: bool, s: bool, d: bool },
+}
+
+#[derive(Debug)]
 pub enum GameInstruction {
     JoinGame,
     GameAction { w: bool, a: bool, s: bool, d: bool },
@@ -35,24 +42,47 @@ pub struct PhysicsInstruction {
 }
 
 /// Handler for ws::Message message
-/// Processes requests to
+/// Processes requests to Physics Engine
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(text)) => {
-                let action: GameInstruction = serde_json::from_slice(text.as_ref()).unwrap();
+                
+                // Parse JSON from client
+                // TODO: Error handle this properly
+                let mut action: ClientInstruction = serde_json::from_slice(text.as_ref()).unwrap();
+
+                // If the name is blank then change name to 'Unnamed'
+                if let ClientInstruction::JoinGame { username: s } = &mut action {
+                    *s = String::from("Unnamed");
+                }
+
+                // Now save our username
+                // Move the username out and construct new game instruction
+                let action = match action {
+                    ClientInstruction::JoinGame { username } => {
+                        self.username = username;
+                        GameInstruction::JoinGame
+                    }
+                    ClientInstruction::GameAction { w, a, s, d } => {
+                        GameInstruction::GameAction { w, a, s, d }
+                    }
+                };
+
+                // Wrap instruction with our Actor Address (so that the physics engine can remember who's who)
                 let physics_instruction = PhysicsInstruction {
                     game_instruction: action,
                     sent_from: ctx.address(),
                 };
-                // println!("Serde: {:?}", physics_instruction);
+
+                // Finally, send the data
                 self.state
                     .get_ref()
                     .get_physics_engine()
                     .do_send(physics_instruction);
             }
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&web::Bytes::from(msg)),
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
+            // Ok(ws::Message::Ping(msg)) => ctx.pong(&web::Bytes::from(msg)),
+            // Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
             _ => (),
         }
     }
@@ -76,6 +106,7 @@ pub async fn index_ws(
     let resp = actix_web_actors::ws::start(
         Ws {
             state: state.clone(),
+            username: String::new()
         },
         &req,
         stream,

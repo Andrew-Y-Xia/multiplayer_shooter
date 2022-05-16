@@ -115,7 +115,7 @@ impl Actor for PhysicsEngine {
             self.collider_set.insert(collider);
         }
 
-        ctx.run_interval(Duration::new(0, 10_000_000), |s, _| {
+        ctx.run_interval(Duration::new(0, 7812500), |s, _| {
             s.step();
             for (address, handle) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
@@ -148,14 +148,13 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     .build();
                 self.collider_set
                     .insert_with_parent(collider, handle, &mut self.rigid_body_set);
-                println!("Joined Game");
             }
             GameInstruction::GameAction { w, a, s, d } => {
                 // TODO: Actually handle this error
                 // If a game action was sent, the player_body should be registered
                 let handle = self.player_body_handles.get(&msg.sent_from).unwrap();
                 let rigid_body = self.rigid_body_set.get_mut(*handle).unwrap();
-                const FORCE: f32 = 50000.0;
+                const FORCE: f32 = 10000.0;
 
                 if w {
                     PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, FORCE])

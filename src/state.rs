@@ -2,7 +2,6 @@ use crate::custom_ws::Ws;
 use crate::physics_engine::PhysicsEngine;
 use actix::Addr;
 use dashmap::DashMap;
-use rapier2d::dynamics::RigidBodyHandle;
 
 pub struct PlayerInfo {}
 

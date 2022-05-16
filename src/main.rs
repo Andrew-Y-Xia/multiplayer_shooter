@@ -5,20 +5,25 @@ mod state;
 use state::State;
 
 use actix::Actor;
+use actix_files as fs;
 use actix_files::NamedFile;
-use actix_web::{web, App, HttpRequest, HttpServer, Result};
+use actix_web::{get, web, App, Error, HttpRequest, HttpServer, Result};
 use std::path::PathBuf;
 
 /// Handles HTTP requests for files
-/// Looks in the /www/ directory for file requested
-async fn index(req: HttpRequest) -> Result<NamedFile> {
-    let path: PathBuf = req.match_info().query("filename").parse().unwrap();
-    Ok(NamedFile::open(PathBuf::from("./www/").join(path))?)
+/// Looks in the /static/ directory for file requested
+#[get("/{filename:.*}")]
+async fn index(req: HttpRequest) -> Result<fs::NamedFile, Error> {
+    let path: std::path::PathBuf = req.match_info().query("filename").parse().unwrap();
+    let file = fs::NamedFile::open_async(PathBuf::from("./static/").join(path)).await?;
+    Ok(file.use_last_modified(true))
 }
 
 /// Reroute home page to index.html
-async fn default_page(_req: HttpRequest) -> Result<NamedFile> {
-    Ok(NamedFile::open(PathBuf::from("./www/index.html"))?)
+#[get("/")]
+async fn default_page() -> Result<fs::NamedFile, Error> {
+    Ok(NamedFile::open_async("./static/index.html").await?
+        .use_last_modified(true))
 }
 
 #[actix_web::main]
@@ -39,8 +44,8 @@ async fn main() -> std::io::Result<()> {
             // Routes Websocket connections
             .route("/ws/", web::get().to(custom_ws::index_ws))
             // Routes file requests
-            .route("/", web::get().to(default_page))
-            .route("/{filename:.*}", web::get().to(index))
+            .service(default_page)
+            .service(index)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

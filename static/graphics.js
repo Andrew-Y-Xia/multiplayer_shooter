@@ -1,10 +1,13 @@
 
 
 
-
 export class Graphics {
-    constructor(canvas_id) {
+    constructor(canvas_id, name) {
         this.canvas = document.getElementById(canvas_id)
+        this.canvas.width = document.body.clientWidth; //document.width is obsolete
+        this.canvas.height = document.body.clientHeight; //document.height is obsolete
+        this.canvas_width = this.canvas.width;
+        this.canvas_height = this.canvas.height;
         this.ctx = this.canvas.getContext("2d");
         this.connection = new WebSocket("ws://" + location.host + "/ws/")
 
@@ -15,7 +18,7 @@ export class Graphics {
 
         // When the connection is open, send some data to the server
         this.connection.onopen = () => {
-            this.connection.send(JSON.stringify({type: "JoinGame"}));
+            this.connection.send(JSON.stringify({type: "JoinGame", username: name}));
         };
 
         // Log errors
@@ -66,7 +69,7 @@ export class Graphics {
             let s = JSON.stringify(
                 {
                     type: "GameAction", 
-                    w : k['w'], a : k['a'], s : k['s'], d : k['d'],
+                    ...k
                 }
             );
             if (this.connection.readyState === WebSocket.OPEN) {
@@ -75,7 +78,6 @@ export class Graphics {
 
             ctx.beginPath();
             ctx.arc(this.game_state.x, this.flip_y(this.game_state.y), 20, 0, 2 * Math.PI);
-            console.log(this.game_state.x, this.game_state.y);
             ctx.stroke();
 
             requestAnimationFrame(loop);
