@@ -10,7 +10,7 @@ use std::time::Duration;
 struct CustomEventHandler;
 struct CustomPhysicsHooks;
 
-#[derive(Message, Serialize)]
+#[derive(Message, Serialize, Debug)]
 #[rtype(result = "()")]
 pub struct PhysicsStateResponse {
     x: Real,
@@ -120,10 +120,11 @@ impl Actor for PhysicsEngine {
             for (address, handle) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
-                address.do_send(PhysicsStateResponse {
+                let r = PhysicsStateResponse {
                     x: trans.x,
                     y: trans.y,
-                });
+                };
+                address.do_send(r);
             }
         });
     }
@@ -157,13 +158,13 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                 const FORCE: f32 = 10000.0;
 
                 if w {
-                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, FORCE])
+                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, -FORCE])
                 }
                 if a {
                     PhysicsEngine::apply_force_from_dir(rigid_body, vector![-FORCE, 0.0])
                 }
                 if s {
-                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, -FORCE])
+                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, FORCE])
                 }
                 if d {
                     PhysicsEngine::apply_force_from_dir(rigid_body, vector![FORCE, 0.0])

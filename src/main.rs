@@ -22,7 +22,8 @@ async fn index(req: HttpRequest) -> Result<fs::NamedFile, Error> {
 /// Reroute home page to index.html
 #[get("/")]
 async fn default_page() -> Result<fs::NamedFile, Error> {
-    Ok(NamedFile::open_async("./static/index.html").await?
+    Ok(NamedFile::open_async("./static/index.html")
+        .await?
         .use_last_modified(true))
 }
 

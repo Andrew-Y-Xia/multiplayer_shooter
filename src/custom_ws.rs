@@ -47,7 +47,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(text)) => {
-                
                 // Parse JSON from client
                 // TODO: Error handle this properly
                 let mut action: ClientInstruction = serde_json::from_slice(text.as_ref()).unwrap();
@@ -106,7 +105,7 @@ pub async fn index_ws(
     let resp = actix_web_actors::ws::start(
         Ws {
             state: state.clone(),
-            username: String::new()
+            username: String::new(),
         },
         &req,
         stream,
