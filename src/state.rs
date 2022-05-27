@@ -2,14 +2,29 @@ use crate::custom_ws::Ws;
 use crate::physics_engine::PhysicsEngine;
 use actix::Addr;
 use dashmap::DashMap;
+use rapier2d::prelude::RigidBodyHandle;
 
-pub struct PlayerInfo {}
+pub struct PlayerInfo {
+    pub username: String, 
+    pub dir: f32, // Direction that the player is facing
+    pub handle: Option<RigidBodyHandle>, // Used to find player's body in the physics simulation
+}
+
+impl Default for PlayerInfo {
+    fn default() -> Self {
+        PlayerInfo {
+            username: String::new(),
+            dir: 0.0,
+            handle: None,
+        }
+    }
+}
 
 // State holds overall application state
 // It records the currently connected players
 // It holds an address to the physics engine, which websocket actors will access
 pub struct State {
-    connected_players: DashMap<Addr<Ws>, PlayerInfo>, // Lockless!
+    pub connected_players: DashMap<Addr<Ws>, PlayerInfo>, // Lockless!
     physics_engine_address: Addr<PhysicsEngine>,
 }
 
@@ -23,7 +38,8 @@ impl State {
 
     // Registers new websocket connection to the game server
     pub fn register(&self, address: Addr<Ws>) {
-        self.connected_players.insert(address, PlayerInfo {});
+        self.connected_players
+            .insert(address, PlayerInfo::default());
     }
 
     // Removes websocket connection

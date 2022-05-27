@@ -22,6 +22,7 @@ async fn index(req: HttpRequest) -> Result<fs::NamedFile, Error> {
 /// Reroute home page to index.html
 #[get("/")]
 async fn default_page() -> Result<fs::NamedFile, Error> {
+    println!("asdf");
     Ok(NamedFile::open_async("./static/index.html")
         .await?
         .use_last_modified(true))
@@ -34,7 +35,7 @@ async fn main() -> std::io::Result<()> {
     let physics_engine_address = physics_actor.start();
 
     // Construct app state
-    let app_state = web::Data::new(State::new(physics_engine_address));
+    let app_state = web::Data::new();
 
     // Initialize and run server
     HttpServer::new(move || {

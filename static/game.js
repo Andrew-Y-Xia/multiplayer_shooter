@@ -39,6 +39,7 @@ export class Game {
         this.connection.onmessage = (e) => {
             
             let data = JSON.parse(e.data);
+            console.log(data);
             this.game_state = {
                 ...data,
                 ...this.game_state.mouse_cords
@@ -94,6 +95,7 @@ export class Game {
                 {
                     type: "GameAction", 
                     ...k,
+                    dir: this.getMouseDirs(),
                 }
             );
             if (this.connection.readyState === WebSocket.OPEN) {

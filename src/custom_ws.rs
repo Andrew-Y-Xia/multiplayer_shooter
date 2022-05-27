@@ -1,6 +1,6 @@
-use crate::physics_engine::PhysicsStateResponse;
 use crate::state::State;
-use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, Running, StreamHandler};
+use crate::{physics_engine::PhysicsStateResponse, state::PlayerInfo};
+use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors;
 use actix_web_actors::ws;
@@ -10,7 +10,6 @@ use serde_json;
 /// Define HTTP actor
 pub struct Ws {
     state: web::Data<State>,
-    username: String,
 }
 
 impl Actor for Ws {
@@ -24,8 +23,16 @@ impl Actor for Ws {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientInstruction {
-    JoinGame { username: String },
-    GameAction { w: bool, a: bool, s: bool, d: bool },
+    JoinGame {
+        username: String,
+    },
+    GameAction {
+        w: bool,
+        a: bool,
+        s: bool,
+        d: bool,
+        dir: f32,
+    },
 }
 
 #[derive(Debug)]
@@ -56,14 +63,22 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
                     *s = String::from("Unnamed");
                 }
 
-                // Now save our username
-                // Move the username out and construct new game instruction
+                let mut player_info = self
+                    .state
+                    .connected_players
+                    .get_mut(&ctx.address())
+                    .unwrap();
+
                 let action = match action {
                     ClientInstruction::JoinGame { username } => {
-                        self.username = username;
+                        // Now save our username
+                        // Move the username out and construct new game instruction
+                        player_info.username = username;
                         GameInstruction::JoinGame
                     }
-                    ClientInstruction::GameAction { w, a, s, d } => {
+                    ClientInstruction::GameAction { w, a, s, d, dir } => {
+                        // Save the dir
+                        player_info.dir = dir;
                         GameInstruction::GameAction { w, a, s, d }
                     }
                 };
@@ -80,13 +95,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
                     .get_physics_engine()
                     .do_send(physics_instruction);
             }
-            // Ok(ws::Message::Ping(msg)) => ctx.pong(&web::Bytes::from(msg)),
-            // Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
             _ => (),
         }
     }
 }
 
+// Routes state info from the physics engine back to the client
 impl Handler<PhysicsStateResponse> for Ws {
     type Result = ();
 
@@ -105,7 +119,6 @@ pub async fn index_ws(
     let resp = actix_web_actors::ws::start(
         Ws {
             state: state.clone(),
-            username: String::new(),
         },
         &req,
         stream,

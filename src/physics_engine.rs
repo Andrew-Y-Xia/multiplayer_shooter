@@ -1,20 +1,34 @@
 use crate::custom_ws::{GameInstruction, PhysicsInstruction, Ws};
+use crate::state::State;
 use actix::Addr;
-use actix::{Actor, ArbiterHandle, AsyncContext, Context, Handler, Message, Running};
+use actix::{Actor, AsyncContext, Context, Handler, Message};
 use rapier2d::prelude::*;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::time::Duration;
+use actix_web::web;
 
 struct CustomEventHandler;
 struct CustomPhysicsHooks;
 
+#[derive(Debug, Serialize)]
+struct Coords {
+    x: Real,
+    y: Real,
+}
+
+#[derive(Debug, Serialize)]
+struct EnemyInfo {
+    coords: Coords,
+    dir: f32,
+}
+
 #[derive(Message, Serialize, Debug)]
 #[rtype(result = "()")]
 pub struct PhysicsStateResponse {
-    x: Real,
-    y: Real,
+    my_coords: Coords,
+    enemies: Vec<EnemyInfo>,
 }
 
 impl EventHandler for CustomEventHandler {
@@ -40,17 +54,18 @@ pub struct PhysicsEngine {
     impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
-    physics_hooks: CustomPhysicsHooks,
+    _physics_hooks: CustomPhysicsHooks,
     event_handler: CustomEventHandler,
 
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
 
-    player_body_handles: HashMap<Addr<Ws>, RigidBodyHandle>,
+    // Pointer to state
+    state: web::Data<State>
 }
 
 impl PhysicsEngine {
-    pub fn new() -> Self {
+    pub fn new(state: web::Data<State>) -> Self {
         PhysicsEngine {
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters::default(),
@@ -61,11 +76,11 @@ impl PhysicsEngine {
             impulse_joint_set: ImpulseJointSet::new(),
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
-            physics_hooks: CustomPhysicsHooks {},
+            _physics_hooks: CustomPhysicsHooks {},
             event_handler: CustomEventHandler {},
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
-            player_body_handles: HashMap::new(),
+            state,
         }
     }
 
@@ -115,14 +130,30 @@ impl Actor for PhysicsEngine {
             self.collider_set.insert(collider);
         }
 
+        // Every 128th of a second, run an iteration of the physics engine and send state data to clients
         ctx.run_interval(Duration::new(0, 7812500), |s, _| {
             s.step();
             for (address, handle) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
                 let r = PhysicsStateResponse {
-                    x: trans.x,
-                    y: trans.y,
+                    my_coords: Coords {
+                        x: trans.x,
+                        y: trans.y,
+                    },
+                    // Iterate through all the players and register them as enemies, exluding our current address
+                    enemies: (s
+                        .player_body_handles
+                        .iter()
+                        .filter(|(inner_address, _)| *inner_address != address)
+                        .map(|(_inner_address, handle)| {
+                            let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
+                            EnemyInfo {
+                                coords: Coords { x: t.x, y: t.y },
+                                dir: todo!(),
+                            }
+                        })
+                        .collect()),
                 };
                 address.do_send(r);
             }
