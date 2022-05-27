@@ -16,8 +16,10 @@ export class Game {
         this.connection = new WebSocket("ws://" + location.host + "/ws/")
 
         this.game_state = {
-            x: 20,
-            y: 20,
+            my_coords : {
+                x: 0, y: 0
+            },
+            enemies : [],
         };
 
         this.mouse_cords = {
@@ -39,11 +41,8 @@ export class Game {
         this.connection.onmessage = (e) => {
             
             let data = JSON.parse(e.data);
-            console.log(data);
-            this.game_state = {
-                ...data,
-                ...this.game_state.mouse_cords
-            }
+            this.game_state = data;
+            // console.log(this.game_state);
         };
 
         this.keydown = {
@@ -102,7 +101,11 @@ export class Game {
                 this.connection.send(s);
             }
 
-            render_sprite(ctx, this.game_state.x, this.game_state.y, this.getMouseDirs(), "hello", 'red');
+            render_sprite(ctx, this.game_state.my_coords.x, this.game_state.my_coords.y, this.getMouseDirs(), "hello", 'red');
+            for (let i = 0; i < this.game_state.enemies.length; i++) {
+                const enemy = this.game_state.enemies[i];
+                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, "enemy", 'blue');
+            }
 
             requestAnimationFrame(loop);
         }

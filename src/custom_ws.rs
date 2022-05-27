@@ -1,3 +1,4 @@
+use crate::physics_engine::EnemyInfo;
 use crate::state::State;
 use crate::{physics_engine::PhysicsStateResponse, state::PlayerInfo};
 use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
@@ -104,7 +105,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 impl Handler<PhysicsStateResponse> for Ws {
     type Result = ();
 
-    fn handle(&mut self, msg: PhysicsStateResponse, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, mut msg: PhysicsStateResponse, ctx: &mut Self::Context) -> Self::Result {
+        let address = ctx.address();
+        for EnemyInfo { dir , .. } in msg.enemies.iter_mut() {
+            *dir = self.state.connected_players.get(&address).unwrap().dir;
+        }
         ctx.text(serde_json::to_string(&msg).unwrap())
     }
 }

@@ -7,7 +7,6 @@ use rapier2d::prelude::RigidBodyHandle;
 pub struct PlayerInfo {
     pub username: String, 
     pub dir: f32, // Direction that the player is facing
-    pub handle: Option<RigidBodyHandle>, // Used to find player's body in the physics simulation
 }
 
 impl Default for PlayerInfo {
@@ -15,7 +14,6 @@ impl Default for PlayerInfo {
         PlayerInfo {
             username: String::new(),
             dir: 0.0,
-            handle: None,
         }
     }
 }

@@ -13,22 +13,22 @@ struct CustomEventHandler;
 struct CustomPhysicsHooks;
 
 #[derive(Debug, Serialize)]
-struct Coords {
-    x: Real,
-    y: Real,
+pub struct Coords {
+    pub x: Real,
+    pub y: Real,
 }
 
 #[derive(Debug, Serialize)]
-struct EnemyInfo {
-    coords: Coords,
-    dir: f32,
+pub struct EnemyInfo {
+    pub coords: Coords,
+    pub dir: f32,
 }
 
 #[derive(Message, Serialize, Debug)]
 #[rtype(result = "()")]
 pub struct PhysicsStateResponse {
-    my_coords: Coords,
-    enemies: Vec<EnemyInfo>,
+    pub my_coords: Coords,
+    pub enemies: Vec<EnemyInfo>,
 }
 
 impl EventHandler for CustomEventHandler {
@@ -60,12 +60,11 @@ pub struct PhysicsEngine {
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
 
-    // Pointer to state
-    state: web::Data<State>
+    player_body_handles: HashMap<Addr<Ws>, RigidBodyHandle>,
 }
 
 impl PhysicsEngine {
-    pub fn new(state: web::Data<State>) -> Self {
+    pub fn new() -> Self {
         PhysicsEngine {
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters::default(),
@@ -80,7 +79,7 @@ impl PhysicsEngine {
             event_handler: CustomEventHandler {},
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
-            state,
+            player_body_handles: HashMap::new(),
         }
     }
 
@@ -150,7 +149,7 @@ impl Actor for PhysicsEngine {
                             let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
                             EnemyInfo {
                                 coords: Coords { x: t.x, y: t.y },
-                                dir: todo!(),
+                                dir: 0.0,
                             }
                         })
                         .collect()),
