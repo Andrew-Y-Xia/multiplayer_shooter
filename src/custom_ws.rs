@@ -1,4 +1,4 @@
-use crate::physics_engine::{Coords, self};
+use crate::physics_engine::{self, Coords};
 use crate::state::State;
 use crate::{physics_engine::PhysicsStateResponse, state::PlayerInfo};
 use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
@@ -61,7 +61,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 
                 // If the name is blank then change name to 'Unnamed'
                 if let ClientInstruction::JoinGame { username: s } = &mut action {
-                    *s = String::from("Unnamed");
+                    if s.is_empty() {
+                        *s = String::from("Unnamed");
+                    }
                 }
 
                 let mut player_info = self
@@ -101,7 +103,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
     }
 }
 
-
 #[derive(Debug, Serialize)]
 struct EnemyInfo {
     coords: Coords,
@@ -113,7 +114,7 @@ struct EnemyInfo {
 #[derive(Debug, Serialize)]
 struct GameResponse {
     my_coords: Coords,
-    enemies: Vec<EnemyInfo>
+    enemies: Vec<EnemyInfo>,
 }
 
 // Routes state info from the physics engine back to the client
@@ -121,14 +122,20 @@ impl Handler<PhysicsStateResponse> for Ws {
     type Result = ();
 
     fn handle(&mut self, msg: PhysicsStateResponse, ctx: &mut Self::Context) -> Self::Result {
-
         // Construct response to client
-        let mut game_response = GameResponse { my_coords: msg.my_coords, enemies: vec![] };
-        
-        for physics_engine::EnemyInfo { coords, ws_address} in msg.enemies.iter() {
+        let mut game_response = GameResponse {
+            my_coords: msg.my_coords,
+            enemies: vec![],
+        };
+
+        for physics_engine::EnemyInfo { coords, ws_address } in msg.enemies.iter() {
             let player_info = self.state.connected_players.get(ws_address).unwrap();
             let (username, dir) = (player_info.username.clone(), player_info.dir);
-            let enemy = EnemyInfo { coords: *coords, dir, username };
+            let enemy = EnemyInfo {
+                coords: *coords,
+                dir,
+                username,
+            };
             game_response.enemies.push(enemy);
         }
         ctx.text(serde_json::to_string(&game_response).unwrap())

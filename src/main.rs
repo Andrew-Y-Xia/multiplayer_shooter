@@ -2,13 +2,13 @@ mod custom_ws;
 mod physics_engine;
 mod state;
 
-use state::State;
+use state::{InnerState, State};
 
 use actix::Actor;
 use actix_files as fs;
 use actix_files::NamedFile;
 use actix_web::{get, web, App, Error, HttpRequest, HttpServer, Result};
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 /// Handles HTTP requests for files
 /// Looks in the /static/ directory for file requested
@@ -29,12 +29,15 @@ async fn default_page() -> Result<fs::NamedFile, Error> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Global state, owned by web::data and by physics_engine
+    let inner_state = Arc::from(InnerState::new());
+
     // Start physics engine actor
-    let physics_actor = physics_engine::PhysicsEngine::new();
+    let physics_actor = physics_engine::PhysicsEngine::new(inner_state.clone());
     let physics_engine_address = physics_actor.start();
 
     // Construct app state
-    let app_state = web::Data::new(State::new(physics_engine_address));
+    let app_state = web::Data::new(State::new(physics_engine_address, inner_state.clone()));
 
     // Initialize and run server
     HttpServer::new(move || {

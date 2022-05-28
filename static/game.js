@@ -4,6 +4,7 @@ import {render_sprite} from './graphics.js';
 export class Game {
 
     constructor(canvas_id, name) {
+        this.name = name;
         this.canvas = document.getElementById(canvas_id)
         this.canvas.width = document.body.clientWidth; //document.width is obsolete
         this.canvas.height = document.body.clientHeight; //document.height is obsolete
@@ -42,7 +43,7 @@ export class Game {
             
             let data = JSON.parse(e.data);
             this.game_state = data;
-            console.log(this.game_state);
+            // console.log(this.game_state);
         };
 
         this.keydown = {
@@ -101,10 +102,10 @@ export class Game {
                 this.connection.send(s);
             }
 
-            render_sprite(ctx, this.game_state.my_coords.x, this.game_state.my_coords.y, this.getMouseDirs(), "hello", 'red');
+            render_sprite(ctx, this.game_state.my_coords.x, this.game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
             for (let i = 0; i < this.game_state.enemies.length; i++) {
                 const enemy = this.game_state.enemies[i];
-                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, "enemy", 'blue');
+                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
             }
 
             requestAnimationFrame(loop);

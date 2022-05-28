@@ -1,13 +1,14 @@
 use crate::custom_ws::{GameInstruction, PhysicsInstruction, Ws};
-use crate::state::State;
+use crate::state::{InnerState, State};
 use actix::Addr;
 use actix::{Actor, AsyncContext, Context, Handler, Message};
+use actix_web::web;
 use rapier2d::prelude::*;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::f32::consts::PI;
+use std::sync::Arc;
 use std::time::Duration;
-use actix_web::web;
 
 struct CustomEventHandler;
 struct CustomPhysicsHooks;
@@ -61,10 +62,12 @@ pub struct PhysicsEngine {
     collider_set: ColliderSet,
 
     player_body_handles: HashMap<Addr<Ws>, RigidBodyHandle>,
+
+    state: Arc<InnerState>,
 }
 
 impl PhysicsEngine {
-    pub fn new() -> Self {
+    pub fn new(state: Arc<InnerState>) -> Self {
         PhysicsEngine {
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters::default(),
@@ -80,6 +83,7 @@ impl PhysicsEngine {
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
             player_body_handles: HashMap::new(),
+            state,
         }
     }
 
@@ -169,6 +173,7 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
             GameInstruction::JoinGame => {
                 let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
                     .translation(vector![100.0, 100.0])
+                    .linear_damping(self.state.settings.damping)
                     .ccd_enabled(true)
                     .build();
                 let handle = self.rigid_body_set.insert(rigid_body);
@@ -185,19 +190,19 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                 // If a game action was sent, the player_body should be registered
                 let handle = self.player_body_handles.get(&msg.sent_from).unwrap();
                 let rigid_body = self.rigid_body_set.get_mut(*handle).unwrap();
-                const FORCE: f32 = 10000.0;
+                let force: f32 = self.state.settings.impulse_force;
 
                 if w {
-                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, -FORCE])
+                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, -force])
                 }
                 if a {
-                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![-FORCE, 0.0])
+                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![-force, 0.0])
                 }
                 if s {
-                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, FORCE])
+                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, force])
                 }
                 if d {
-                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![FORCE, 0.0])
+                    PhysicsEngine::apply_force_from_dir(rigid_body, vector![force, 0.0])
                 }
             }
         }
