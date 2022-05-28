@@ -1,4 +1,4 @@
-use crate::physics_engine::EnemyInfo;
+use crate::physics_engine::{Coords, self};
 use crate::state::State;
 use crate::{physics_engine::PhysicsStateResponse, state::PlayerInfo};
 use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
@@ -101,16 +101,37 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
     }
 }
 
+
+#[derive(Debug, Serialize)]
+struct EnemyInfo {
+    coords: Coords,
+    dir: f32,
+    username: String,
+}
+
+// Final websocket response to client
+#[derive(Debug, Serialize)]
+struct GameResponse {
+    my_coords: Coords,
+    enemies: Vec<EnemyInfo>
+}
+
 // Routes state info from the physics engine back to the client
 impl Handler<PhysicsStateResponse> for Ws {
     type Result = ();
 
-    fn handle(&mut self, mut msg: PhysicsStateResponse, ctx: &mut Self::Context) -> Self::Result {
-        let address = ctx.address();
-        for EnemyInfo { dir , .. } in msg.enemies.iter_mut() {
-            *dir = self.state.connected_players.get(&address).unwrap().dir;
+    fn handle(&mut self, msg: PhysicsStateResponse, ctx: &mut Self::Context) -> Self::Result {
+
+        // Construct response to client
+        let mut game_response = GameResponse { my_coords: msg.my_coords, enemies: vec![] };
+        
+        for physics_engine::EnemyInfo { coords, ws_address} in msg.enemies.iter() {
+            let player_info = self.state.connected_players.get(ws_address).unwrap();
+            let (username, dir) = (player_info.username.clone(), player_info.dir);
+            let enemy = EnemyInfo { coords: *coords, dir, username };
+            game_response.enemies.push(enemy);
         }
-        ctx.text(serde_json::to_string(&msg).unwrap())
+        ctx.text(serde_json::to_string(&game_response).unwrap())
     }
 }
 

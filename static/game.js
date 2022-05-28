@@ -42,7 +42,7 @@ export class Game {
             
             let data = JSON.parse(e.data);
             this.game_state = data;
-            // console.log(this.game_state);
+            console.log(this.game_state);
         };
 
         this.keydown = {

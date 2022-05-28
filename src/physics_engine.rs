@@ -12,19 +12,19 @@ use actix_web::web;
 struct CustomEventHandler;
 struct CustomPhysicsHooks;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Copy)]
 pub struct Coords {
     pub x: Real,
     pub y: Real,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct EnemyInfo {
+    pub ws_address: Addr<Ws>,
     pub coords: Coords,
-    pub dir: f32,
 }
 
-#[derive(Message, Serialize, Debug)]
+#[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct PhysicsStateResponse {
     pub my_coords: Coords,
@@ -145,11 +145,11 @@ impl Actor for PhysicsEngine {
                         .player_body_handles
                         .iter()
                         .filter(|(inner_address, _)| *inner_address != address)
-                        .map(|(_inner_address, handle)| {
+                        .map(|(inner_address, handle)| {
                             let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
                             EnemyInfo {
                                 coords: Coords { x: t.x, y: t.y },
-                                dir: 0.0,
+                                ws_address: inner_address.clone(),
                             }
                         })
                         .collect()),
