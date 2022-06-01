@@ -1,11 +1,11 @@
 import { Game } from './game.js'
 
 
-var SETTINGS;
-
 await $.getJSON( "./settings.json", function( data ) {
-    SETTINGS = data;
+    let SETTINGS = data;
     console.log(SETTINGS);
+
+    window.game_settings = SETTINGS;
 });
 
 

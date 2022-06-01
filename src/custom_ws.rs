@@ -7,10 +7,12 @@ use actix_web_actors;
 use actix_web_actors::ws;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::time::Instant;
 
 /// Define HTTP actor
 pub struct Ws {
     state: web::Data<State>,
+    start_timestamp: Instant,
 }
 
 impl Actor for Ws {
@@ -115,6 +117,7 @@ struct EnemyInfo {
 struct GameResponse {
     my_coords: Coords,
     enemies: Vec<EnemyInfo>,
+    timestamp: f64,
 }
 
 // Routes state info from the physics engine back to the client
@@ -126,6 +129,7 @@ impl Handler<PhysicsStateResponse> for Ws {
         let mut game_response = GameResponse {
             my_coords: msg.my_coords,
             enemies: vec![],
+            timestamp: self.start_timestamp.elapsed().as_millis() as f64,
         };
 
         for physics_engine::EnemyInfo { coords, ws_address } in msg.enemies.iter() {
@@ -152,6 +156,7 @@ pub async fn index_ws(
     let resp = actix_web_actors::ws::start(
         Ws {
             state: state.clone(),
+            start_timestamp: Instant::now()
         },
         &req,
         stream,

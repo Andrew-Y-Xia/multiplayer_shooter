@@ -35,3 +35,12 @@ function render_bullet(ctx, x, y, color) {
 function render_wall(ctx, x, y) {
 
 }
+
+
+const lerp = (a, b, amount) => (1 - amount) * a + amount * b;
+
+export function interpolate(y1, y2, time1, time2, interop_point) {
+    let delta_x = time2 - time1;
+    let ratio = (interop_point - time1) / delta_x;
+    return lerp(y1, y2, ratio);
+}

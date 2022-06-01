@@ -1,4 +1,4 @@
-import {render_sprite} from './graphics.js';
+import {interpolate, render_sprite} from './graphics.js';
 
 
 export class Game {
@@ -16,12 +16,11 @@ export class Game {
         this.ctx = this.canvas.getContext("2d");
         this.connection = new WebSocket("ws://" + location.host + "/ws/")
 
-        this.game_state = {
-            my_coords : {
-                x: 0, y: 0
-            },
-            enemies : [],
-        };
+
+        // Array of game states
+        this.game_state_buffer = [];
+
+        
 
         this.mouse_cords = {
             x: 0,
@@ -42,7 +41,11 @@ export class Game {
         this.connection.onmessage = (e) => {
             
             let data = JSON.parse(e.data);
-            this.game_state = data;
+            this.insertGameState(data);
+            if (this.start_timestamp === undefined) {
+                this.start_timestamp = data.timestamp;
+                this.js_epoch = Date.now();
+            }
             // console.log(this.game_state);
         };
 
@@ -81,11 +84,74 @@ export class Game {
         return Math.atan2(this.center.y - this.mouse_cords.y, this.center.x - this.mouse_cords.x) + Math.PI / 2;
     }
 
+    // Get game state by interpolating between game states in the buffer
+    getGameState() {
+        let game_state = {
+            my_coords : {
+                x: 0, y: 0
+            },
+            enemies : [],
+            timestamp: 0,
+        };
+
+        let current_rust_timestamp = this.timestamp + (Date.now() + this.js_epoch);
+        let target_timestamp = this.timestamp - 100;
+
+
+        /*
+        // Alias buffer for less typing
+        let buffer = this.game_state_buffer;
+        // Do linear search to find two game states to interpolate between
+        for (let i = 0; i < buffer.length - 1; i++) {
+            if (buffer[i].timestamp >= target_timestamp && buffer[i + 1].timestamp <= target_timestamp) {
+                // States found, now linearly interpolate all attributes
+                let s1 = buffer[i];
+                let s2 = buffer[i + 1];
+                let f = (y1, y2) => interpolate(y1, y2, s1.timestamp, s2.timestamp, target_timestamp);
+
+                game_state.my_coords = {
+                    x: f(s1.my_coords.x, s2.my_coords.y),
+                    y: f(s1.my_coords.y, s2.my_coords.y),
+                }
+                let 
+            }
+        }
+        */
+        
+        // Find the closest game_state
+
+        // Alias buffer for less typing
+        let buffer = this.game_state_buffer;
+        // Do linear search to find two game states target is in between
+        for (let i = 0; i < buffer.length - 1; i++) {
+            if (buffer[i].timestamp >= target_timestamp && buffer[i + 1].timestamp <= target_timestamp) {
+                // States found, now choose the better state
+                game_state = Math.abs(buffer[i] - target_timestamp) > Math.abs(buffer[i + 1] - target_timestamp) ? buffer[i] : buffer[i + 1];
+            }
+        }
+
+        return game_state;
+    }
+
+    // Insert the game state into buffer and sort
+    insertGameState(game_state) {
+        this.game_state_buffer.push(game_state);
+        this.game_state_buffer.sort(function(a, b){return a - b});
+        if (this.game_state_buffer.length > 60) {
+            this.game_state_buffer.pop();
+        }
+    }
+
 
     run() {
         const ctx = this.ctx;
         const canvas = this.canvas;
         let loop = () => {
+
+            let game_state = this.getGameState();
+            console.log(game_state);
+
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             
@@ -102,9 +168,9 @@ export class Game {
                 this.connection.send(s);
             }
 
-            render_sprite(ctx, this.game_state.my_coords.x, this.game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
-            for (let i = 0; i < this.game_state.enemies.length; i++) {
-                const enemy = this.game_state.enemies[i];
+            render_sprite(ctx, game_state.my_coords.x, game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
+            for (let i = 0; i < game_state.enemies.length; i++) {
+                const enemy = game_state.enemies[i];
                 render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
             }
 
