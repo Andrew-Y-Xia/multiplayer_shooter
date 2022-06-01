@@ -117,7 +117,7 @@ struct EnemyInfo {
 struct GameResponse {
     my_coords: Coords,
     enemies: Vec<EnemyInfo>,
-    timestamp: f64,
+    timestamp: u128,
 }
 
 // Routes state info from the physics engine back to the client
@@ -129,7 +129,7 @@ impl Handler<PhysicsStateResponse> for Ws {
         let mut game_response = GameResponse {
             my_coords: msg.my_coords,
             enemies: vec![],
-            timestamp: self.start_timestamp.elapsed().as_millis() as f64,
+            timestamp: self.start_timestamp.elapsed().as_millis(),
         };
 
         for physics_engine::EnemyInfo { coords, ws_address } in msg.enemies.iter() {

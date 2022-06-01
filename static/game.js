@@ -1,5 +1,25 @@
 import {interpolate, render_sprite} from './graphics.js';
 
+Array.prototype.pushSorted = function(el, compareFn) {
+    this.splice((function(arr) {
+      var m = 0;
+      var n = arr.length - 1;
+  
+      while(m <= n) {
+        var k = (n + m) >> 1;
+        var cmp = compareFn(el, arr[k]);
+  
+        if(cmp > 0) m = k + 1;
+          else if(cmp < 0) n = k - 1;
+          else return k;
+      }
+  
+      return -m - 1;
+    })(this), 0, el);
+  
+    return this.length;
+  };
+  
 
 export class Game {
 
@@ -44,7 +64,7 @@ export class Game {
             this.insertGameState(data);
             if (this.start_timestamp === undefined) {
                 this.start_timestamp = data.timestamp;
-                this.js_epoch = Date.now();
+                this.js_epoch = performance.now();
             }
             // console.log(this.game_state);
         };
@@ -94,9 +114,9 @@ export class Game {
             timestamp: 0,
         };
 
-        let current_rust_timestamp = this.timestamp + (Date.now() + this.js_epoch);
-        let target_timestamp = this.timestamp - 100;
 
+        let current_rust_timestamp = this.start_timestamp + (performance.now() - this.js_epoch);
+        let target_timestamp = current_rust_timestamp - 50;
 
         /*
         // Alias buffer for less typing
@@ -127,7 +147,14 @@ export class Game {
             if (buffer[i].timestamp >= target_timestamp && buffer[i + 1].timestamp <= target_timestamp) {
                 // States found, now choose the better state
                 game_state = Math.abs(buffer[i] - target_timestamp) > Math.abs(buffer[i + 1] - target_timestamp) ? buffer[i] : buffer[i + 1];
+                break;
             }
+        }
+
+        if (game_state.timestamp === 0) {
+            console.log(target_timestamp);
+            console.log(buffer);
+            game_state = buffer[0];
         }
 
         return game_state;
@@ -135,9 +162,8 @@ export class Game {
 
     // Insert the game state into buffer and sort
     insertGameState(game_state) {
-        this.game_state_buffer.push(game_state);
-        this.game_state_buffer.sort(function(a, b){return a - b});
-        if (this.game_state_buffer.length > 60) {
+        this.game_state_buffer.pushSorted(game_state, function(a, b){return a.timestamp - b.timestamp});
+        if (this.game_state_buffer.length > 1000) {
             this.game_state_buffer.pop();
         }
     }
@@ -149,7 +175,6 @@ export class Game {
         let loop = () => {
 
             let game_state = this.getGameState();
-            console.log(game_state);
 
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
