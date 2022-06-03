@@ -1,7 +1,7 @@
-use crate::physics_engine::{PhysicsStateResponse, GameOver};
 use crate::physics_engine::{self, Coords};
+use crate::physics_engine::{GameOver, PhysicsStateResponse};
 use crate::state::State;
-use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler, ActorContext};
+use actix::{Actor, ActorContext, Addr, AsyncContext, Handler, Message, StreamHandler};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors;
 use actix_web_actors::ws;
@@ -170,20 +170,20 @@ impl Handler<PhysicsStateResponse> for Ws {
             dir,
         } in msg.enemies.iter()
         {
-            let player_info = self.state.connected_players.get(ws_address).unwrap();
-            let username = player_info.username.clone();
-            let enemy = EnemyInfo {
-                coords: *coords,
-                health: *health,
-                dir: *dir,
-                username,
-            };
-            game_response.enemies.push(enemy);
+            if let Some(player_info) = self.state.connected_players.get(ws_address) {
+                let username = player_info.username.clone();
+                let enemy = EnemyInfo {
+                    coords: *coords,
+                    health: *health,
+                    dir: *dir,
+                    username,
+                };
+                game_response.enemies.push(enemy);
+            }
         }
         ctx.text(serde_json::to_string(&game_response).unwrap())
     }
 }
-
 
 impl Handler<GameOver> for Ws {
     type Result = ();

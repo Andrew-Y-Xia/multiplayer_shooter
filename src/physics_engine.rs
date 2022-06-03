@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 struct CustomEventHandler {
-    handles_to_decrement_health: Arc<Mutex<Vec<RigidBodyHandle>>>
+    handles_to_decrement_health: Arc<Mutex<Vec<RigidBodyHandle>>>,
 }
 struct CustomPhysicsHooks;
 
@@ -43,7 +43,6 @@ pub struct PhysicsPlayerInfo {
     pub dir: f32,
     pub bullet_cooldown: i32,
 }
-
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -106,7 +105,9 @@ impl PhysicsEngine {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             _physics_hooks: CustomPhysicsHooks {},
-            event_handler: CustomEventHandler {handles_to_decrement_health: Arc::from(Mutex::from(vec![]))},
+            event_handler: CustomEventHandler {
+                handles_to_decrement_health: Arc::from(Mutex::from(vec![])),
+            },
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
             player_body_handles: HashMap::new(),
@@ -137,7 +138,11 @@ impl PhysicsEngine {
     }
 
     fn decrement_health(&mut self) {
-        let mut v = self.event_handler.handles_to_decrement_health.lock().unwrap();
+        let mut v = self
+            .event_handler
+            .handles_to_decrement_health
+            .lock()
+            .unwrap();
         let damage = self.state.settings.bullet_damage;
         for handle in v.iter() {
             let body = &mut self.rigid_body_set.get_mut(*handle).unwrap();
@@ -147,9 +152,7 @@ impl PhysicsEngine {
         }
         v.clear();
     }
-
 }
-
 
 impl Actor for PhysicsEngine {
     type Context = Context<Self>;
@@ -218,17 +221,17 @@ impl Actor for PhysicsEngine {
             // Decrement health
             s.decrement_health();
 
-            let mut to_delete: Vec<RigidBodyHandle> = vec![];
+            let mut to_delete: Vec<(Addr<Ws>, RigidBodyHandle)> = vec![];
 
             s.step();
             for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
-                
+
                 // Game over
                 if rigid_body.user_data <= 5000 {
-                    address.do_send(GameOver{});
-                    to_delete.push(*handle);
+                    address.do_send(GameOver {});
+                    to_delete.push((address.clone(), *handle));
                     continue;
                 }
 
@@ -266,7 +269,9 @@ impl Actor for PhysicsEngine {
                 };
                 address.do_send(r);
             }
-            for handle in to_delete.iter() {
+
+            // Delete players that have died
+            for (address, handle) in to_delete.iter() {
                 s.rigid_body_set.remove(
                     *handle,
                     &mut s.island_manager,
@@ -275,7 +280,7 @@ impl Actor for PhysicsEngine {
                     &mut s.multibody_joint_set,
                     true,
                 );
-                s.bullet_handles.remove(&handle);
+                s.player_body_handles.remove(address);
             }
         });
     }
@@ -312,21 +317,23 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     .insert_with_parent(collider, handle, &mut self.rigid_body_set);
             }
             GameInstruction::ExitGame => {
-                let PhysicsPlayerInfo {
+                if let Some(PhysicsPlayerInfo {
                     handle,
                     dir: _mut_dir,
                     bullet_cooldown: _,
                     ..
-                } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
-                self.rigid_body_set.remove(
-                    *handle,
-                    &mut self.island_manager,
-                    &mut self.collider_set,
-                    &mut self.impulse_joint_set,
-                    &mut self.multibody_joint_set,
-                    true,
-                );
-                self.player_body_handles.remove(&msg.sent_from);
+                }) = self.player_body_handles.get_mut(&msg.sent_from)
+                {
+                    self.rigid_body_set.remove(
+                        *handle,
+                        &mut self.island_manager,
+                        &mut self.collider_set,
+                        &mut self.impulse_joint_set,
+                        &mut self.multibody_joint_set,
+                        true,
+                    );
+                    self.player_body_handles.remove(&msg.sent_from);
+                }
             }
             GameInstruction::GameAction {
                 w,
@@ -366,7 +373,10 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     let bullet_speed = self.state.settings.bullet_speed;
                     let unit_velocity = vector![dir.cos(), dir.sin()];
                     let trans = rigid_body.translation().clone();
-                    PhysicsEngine::apply_force_from_dir(rigid_body, unit_velocity * self.state.settings.impulse_force * -5.0);
+                    PhysicsEngine::apply_force_from_dir(
+                        rigid_body,
+                        unit_velocity * self.state.settings.impulse_force * -5.0,
+                    );
                     let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
                         .translation(vector![trans.x, trans.y] + unit_velocity * 30.0)
                         .linear_damping(0.25)
@@ -385,13 +395,12 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     );
                     self.bullet_handles.insert(handle, 0);
 
-                    *bullet_cooldown = 25;                  
+                    *bullet_cooldown = 25;
                 }
             }
         }
     }
 }
-
 
 fn health_convert(num: u128) -> f32 {
     let n = num.max(5000);
