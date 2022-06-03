@@ -28,7 +28,7 @@ pub struct Settings {
     pub arena_width: f32,
     pub arena_height: f32,
     pub max_health: i32,
-    pub bullet_damage: i32,
+    pub bullet_speed: f32,
     pub impulse_force: f32,
     pub damping: f32,
 }

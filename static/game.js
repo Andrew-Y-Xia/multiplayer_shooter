@@ -225,15 +225,15 @@ export class Game {
             render_border(ctx, o.x, o.y);
             render_background(ctx, original_game_state.my_coords.x, original_game_state.my_coords.y);
 
+            for (let i = 0; i < t_game_state.bullets.length; i++) {
+                const bullet = t_game_state.bullets[i];
+                render_bullet(ctx, bullet.x, bullet.y, 'grey');
+            }
+
             render_sprite(ctx, t_game_state.my_coords.x, t_game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
             for (let i = 0; i < t_game_state.enemies.length; i++) {
                 const enemy = t_game_state.enemies[i];
                 render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
-            }
-
-            for (let i = 0; i < t_game_state.bullets.length; i++) {
-                const bullet = t_game_state.bullets[i];
-                render_bullet(ctx, bullet.x, bullet.y);
             }
 
             requestAnimationFrame(loop);

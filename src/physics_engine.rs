@@ -37,6 +37,7 @@ pub struct PhysicsStateResponse {
 pub struct PhysicsPlayerInfo {
     pub handle: RigidBodyHandle,
     pub dir: f32,
+    pub bullet_cooldown: i32,
 }
 
 impl EventHandler for CustomEventHandler {
@@ -146,25 +147,39 @@ impl Actor for PhysicsEngine {
 
         // Every 128th of a second, run an iteration of the physics engine and send state data to clients
         ctx.run_interval(Duration::new(0, 7812500), |s, _| {
+            let to_deleted: Vec<_> = s
+                .bullet_handles
+                .iter_mut()
+                .map(|(handle, counter)| {
+                    *counter += 1;
+                    (handle, counter)
+                })
+                .filter(|(_handle, counter)| **counter > 500)
+                .map(|(a, b)| (*a, *b))
+                .collect();
+
+            for (handle, _) in to_deleted {
+                s.rigid_body_set.remove(
+                    handle,
+                    &mut s.island_manager,
+                    &mut s.collider_set,
+                    &mut s.impulse_joint_set,
+                    &mut s.multibody_joint_set,
+                    true,
+                );
+                s.bullet_handles.remove(&handle);
+            }
+
+            // Decrement bullet cooldowns
+            s.player_body_handles.iter_mut().for_each(|(_, PhysicsPlayerInfo { bullet_cooldown, ..})| {
+                *bullet_cooldown -= 1;
+                *bullet_cooldown = 0.max(*bullet_cooldown);
+            });
+
             s.step();
             for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
-
-                let deleted: Vec<_> = s.bullet_handles.iter().filter(|(handle, counter)| {
-                    if **counter > 500 {
-                        s.rigid_body_set.remove(**handle, &mut s.island_manager, &mut s.collider_set, &mut s.impulse_joint_set, &mut s.multibody_joint_set, true);
-                        true
-                    } else {
-                        false
-                    }
-                })
-                .map(|(a, b)| { (*a, *b) })
-                .collect();
-
-                for (handle, _) in deleted {
-                    s.bullet_handles.remove(&handle);
-                }
 
                 let r = PhysicsStateResponse {
                     my_coords: Coords {
@@ -176,7 +191,7 @@ impl Actor for PhysicsEngine {
                         .player_body_handles
                         .iter()
                         .filter(|(inner_address, _)| *inner_address != address)
-                        .map(|(inner_address, PhysicsPlayerInfo { handle, dir })| {
+                        .map(|(inner_address, PhysicsPlayerInfo { handle, dir, .. })| {
                             let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
                             EnemyInfo {
                                 coords: Coords { x: t.x, y: t.y },
@@ -191,7 +206,6 @@ impl Actor for PhysicsEngine {
                         .map(|(handle, counter)| {
                             let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
                             let c = Coords { x: t.x, y: t.y };
-                            *counter += 1;
                             c
                         })
                         .collect(),
@@ -215,8 +229,14 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     .ccd_enabled(true)
                     .build();
                 let handle = self.rigid_body_set.insert(rigid_body);
-                self.player_body_handles
-                    .insert(msg.sent_from, PhysicsPlayerInfo { handle, dir: 0.0 });
+                self.player_body_handles.insert(
+                    msg.sent_from,
+                    PhysicsPlayerInfo {
+                        handle,
+                        dir: 0.0,
+                        bullet_cooldown: 0,
+                    },
+                );
                 let collider = ColliderBuilder::ball(20.0)
                     .density(1.0)
                     .restitution(0.7)
@@ -237,6 +257,7 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                 let PhysicsPlayerInfo {
                     handle,
                     dir: mut_dir,
+                    bullet_cooldown,
                 } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
                 let rigid_body = self.rigid_body_set.get_mut(*handle).unwrap();
                 let force: f32 = self.state.settings.impulse_force;
@@ -255,16 +276,19 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     PhysicsEngine::apply_force_from_dir(rigid_body, vector![force, 0.0])
                 }
 
-                if click {
+                if click && *bullet_cooldown <= 0 {
+                    let dir = dir + PI / 2.0;
+                    let bullet_speed = self.state.settings.bullet_speed;
+                    let unit_velocity = vector![dir.cos(), dir.sin()];
                     let trans = rigid_body.translation();
                     let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
-                        .translation(vector![trans.x, trans.y])
-                        .linear_damping(self.state.settings.damping)
+                        .translation(vector![trans.x, trans.y] + unit_velocity * 30.0)
+                        .linear_damping(0.9)
                         .ccd_enabled(true)
-                        .linvel(vector![10.0, 10.0])
+                        .linvel(unit_velocity * bullet_speed)
                         .build();
                     let handle = self.rigid_body_set.insert(rigid_body);
-                    let collider = ColliderBuilder::ball(5.0)
+                    let collider = ColliderBuilder::ball(7.0)
                         .density(1.0)
                         .restitution(0.9)
                         .build();
@@ -274,6 +298,8 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                         &mut self.rigid_body_set,
                     );
                     self.bullet_handles.insert(handle, 0);
+
+                    *bullet_cooldown = 25;
                 }
             }
         }

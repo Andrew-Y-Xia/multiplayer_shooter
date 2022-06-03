@@ -2,7 +2,7 @@
   "arena_width": 1000,
   "arena_height": 1000,
   "max_health": 100,
-  "bullet_damage": 12,
+  "bullet_speed": 1000,
   "impulse_force": 10000,
   "damping": 0.85
 }
