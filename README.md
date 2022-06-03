@@ -3,6 +3,7 @@
 
 A simple 2d shooter using [Actix Web](https://actix.rs) on the backend and [Rapier2d](https://rapier.rs) as the physics engine
 
+![Alt Text](https://github.com/Andrew-Y-Xia/multiplayer_shooter/blob/master/static/game_demo.gif)
 
 
 
