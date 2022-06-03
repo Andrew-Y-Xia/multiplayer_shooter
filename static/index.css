@@ -14,3 +14,10 @@ canvas {
 #start-panel {
     position: absolute;
 }
+
+#game-over {
+    text-align: center;
+    left: 50%;
+    top: 30%;
+    display: none;
+}

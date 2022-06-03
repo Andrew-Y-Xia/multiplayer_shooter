@@ -44,6 +44,11 @@ pub struct PhysicsPlayerInfo {
     pub bullet_cooldown: i32,
 }
 
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct GameOver;
+
 impl EventHandler for CustomEventHandler {
     fn handle_collision_event(
         &self,
@@ -138,7 +143,6 @@ impl PhysicsEngine {
             let body = &mut self.rigid_body_set.get_mut(*handle).unwrap();
             if damage < body.user_data {
                 body.user_data -= damage;
-                println!("{}", body.user_data);
             }
         }
         v.clear();
@@ -214,14 +218,19 @@ impl Actor for PhysicsEngine {
             // Decrement health
             s.decrement_health();
 
+            let mut to_delete: Vec<RigidBodyHandle> = vec![];
+
             s.step();
             for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
                 
                 // Game over
-                // if rigid_body.user_data <= 5000 {
-                // }
+                if rigid_body.user_data <= 5000 {
+                    address.do_send(GameOver{});
+                    to_delete.push(*handle);
+                    continue;
+                }
 
                 let r = PhysicsStateResponse {
                     my_coords: Coords {
@@ -256,6 +265,17 @@ impl Actor for PhysicsEngine {
                         .collect(),
                 };
                 address.do_send(r);
+            }
+            for handle in to_delete.iter() {
+                s.rigid_body_set.remove(
+                    *handle,
+                    &mut s.island_manager,
+                    &mut s.collider_set,
+                    &mut s.impulse_joint_set,
+                    &mut s.multibody_joint_set,
+                    true,
+                );
+                s.bullet_handles.remove(&handle);
             }
         });
     }

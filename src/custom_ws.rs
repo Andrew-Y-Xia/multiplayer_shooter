@@ -1,7 +1,7 @@
-use crate::physics_engine::PhysicsStateResponse;
+use crate::physics_engine::{PhysicsStateResponse, GameOver};
 use crate::physics_engine::{self, Coords};
 use crate::state::State;
-use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
+use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler, ActorContext};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors;
 use actix_web_actors::ws;
@@ -181,6 +181,16 @@ impl Handler<PhysicsStateResponse> for Ws {
             game_response.enemies.push(enemy);
         }
         ctx.text(serde_json::to_string(&game_response).unwrap())
+    }
+}
+
+
+impl Handler<GameOver> for Ws {
+    type Result = ();
+
+    fn handle(&mut self, _msg: GameOver, ctx: &mut Self::Context) -> Self::Result {
+        ctx.text("game_over");
+        ctx.stop();
     }
 }
 

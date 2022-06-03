@@ -58,16 +58,23 @@ export class Game {
             console.log('WebSocket Error ' + error);
         };
 
+
+        this.game_over = false;
+
         // Log messages from the server
         this.connection.onmessage = (e) => {
-            
-            let data = JSON.parse(e.data);
-            this.insertGameState(data);
-            if (this.start_timestamp === undefined) {
-                this.start_timestamp = data.timestamp;
-                this.js_epoch = performance.now();
-            }
-            // console.log(this.game_state);
+            if (e.data != "game_over") {
+                let data = JSON.parse(e.data);
+                this.insertGameState(data);
+                if (this.start_timestamp === undefined) {
+                    this.start_timestamp = data.timestamp;
+                    this.js_epoch = performance.now();
+                }
+            } else {
+                this.game_over = true;
+                $("#game-over").show();
+                return;
+            }    
         };
 
         this.keydown = {
@@ -161,8 +168,6 @@ export class Game {
         }
 
         if (game_state.timestamp === 0) {
-            console.log(target_timestamp);
-            console.log(buffer);
             game_state = buffer[0];
         }
 
