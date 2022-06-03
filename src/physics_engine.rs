@@ -1,11 +1,11 @@
 use crate::custom_ws::{GameInstruction, PhysicsInstruction, Ws};
-use crate::state::{InnerState, State};
+use crate::state::InnerState;
 use actix::Addr;
 use actix::{Actor, AsyncContext, Context, Handler, Message};
-use actix_web::web;
+
 use rapier2d::prelude::*;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,10 +43,10 @@ pub struct PhysicsPlayerInfo {
 impl EventHandler for CustomEventHandler {
     fn handle_collision_event(
         &self,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        event: CollisionEvent,
-        contact_pair: Option<&ContactPair>,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        _event: CollisionEvent,
+        _contact_pair: Option<&ContactPair>,
     ) {
         // TODO
     }
@@ -64,7 +64,7 @@ pub struct PhysicsEngine {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     _physics_hooks: CustomPhysicsHooks,
-    event_handler: CustomEventHandler,
+    _event_handler: CustomEventHandler,
 
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
@@ -88,7 +88,7 @@ impl PhysicsEngine {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             _physics_hooks: CustomPhysicsHooks {},
-            event_handler: CustomEventHandler {},
+            _event_handler: CustomEventHandler {},
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
             player_body_handles: HashMap::new(),
@@ -210,7 +210,7 @@ impl Actor for PhysicsEngine {
                     bullets: s
                         .bullet_handles
                         .iter_mut()
-                        .map(|(handle, counter)| {
+                        .map(|(handle, _counter)| {
                             let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
                             let c = Coords { x: t.x, y: t.y };
                             c
@@ -226,7 +226,7 @@ impl Actor for PhysicsEngine {
 impl Handler<PhysicsInstruction> for PhysicsEngine {
     type Result = ();
 
-    fn handle(&mut self, msg: PhysicsInstruction, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: PhysicsInstruction, _ctx: &mut Self::Context) -> Self::Result {
         match msg.game_instruction {
             // Register player body to rigid_body_set
             GameInstruction::JoinGame => {
@@ -254,8 +254,8 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
             GameInstruction::ExitGame => {
                 let PhysicsPlayerInfo {
                     handle,
-                    dir: mut_dir,
-                    bullet_cooldown,
+                    dir: _mut_dir,
+                    bullet_cooldown: _,
                 } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
                 self.rigid_body_set.remove(
                     *handle,

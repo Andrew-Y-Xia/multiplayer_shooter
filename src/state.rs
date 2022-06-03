@@ -7,7 +7,7 @@ use crate::custom_ws::Ws;
 use crate::physics_engine::PhysicsEngine;
 use actix::Addr;
 use dashmap::DashMap;
-use rapier2d::prelude::RigidBodyHandle;
+
 use serde::Deserialize;
 use serde_json;
 

@@ -1,6 +1,6 @@
+use crate::physics_engine::PhysicsStateResponse;
 use crate::physics_engine::{self, Coords};
 use crate::state::State;
-use crate::{physics_engine::PhysicsStateResponse, state::PlayerInfo};
 use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors;
