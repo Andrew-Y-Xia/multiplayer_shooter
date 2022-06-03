@@ -115,19 +115,20 @@ impl Actor for PhysicsEngine {
     // Send state every tick
     fn started(&mut self, ctx: &mut Self::Context) {
         // Bounding box
+        let (w, h) = (self.state.settings.arena_width, self.state.settings.arena_height);
         for collider in [
-            ColliderBuilder::cuboid(1000.0, 0.1)
+            ColliderBuilder::cuboid(w, 0.1)
                 .translation(vector![0.0, 0.0])
                 .build(),
-            ColliderBuilder::cuboid(1000.0, 0.1)
-                .translation(vector![0.0, 500.0])
+            ColliderBuilder::cuboid(w, 0.1)
+                .translation(vector![0.0, h])
                 .build(),
-            ColliderBuilder::cuboid(1000.0, 0.1)
+            ColliderBuilder::cuboid(w, 0.1)
                 .rotation(PI / 2.0)
                 .build(),
-            ColliderBuilder::cuboid(1000.0, 0.1)
+            ColliderBuilder::cuboid(w, 0.1)
                 .rotation(PI / 2.0)
-                .translation(vector![1000.0, 0.0])
+                .translation(vector![w, 0.0])
                 .build(),
         ] {
             self.collider_set.insert(collider);

@@ -1,4 +1,5 @@
-import {interpolate, render_sprite} from './graphics.js';
+import {interpolate, render_sprite, translator, render_border} from './graphics.js';
+
 
 Array.prototype.pushSorted = function(el, compareFn) {
     this.splice((function(arr) {
@@ -116,7 +117,7 @@ export class Game {
 
 
         let current_rust_timestamp = this.start_timestamp + (performance.now() - this.js_epoch);
-        let target_timestamp = current_rust_timestamp - 50;
+        let target_timestamp = current_rust_timestamp - 70;
 
         /*
         // Alias buffer for less typing
@@ -174,8 +175,21 @@ export class Game {
         const canvas = this.canvas;
         let loop = () => {
 
-            let game_state = this.getGameState();
-
+            let original_game_state = this.getGameState();
+            let translate = translator(original_game_state.my_coords.x, original_game_state.my_coords.y, this.center.x, this.center.y);
+            let t_game_state = {
+                my_coords : translate(original_game_state.my_coords.x, original_game_state.my_coords.y),
+                enemies: [],
+            }
+            for (let i = 0; i < original_game_state.enemies.length; i++) {
+                const enemy = original_game_state.enemies[i];
+                t_game_state.enemies.push({
+                    coords: translate(enemy.coords.x, enemy.coords.y),
+                    dir: enemy.dir,
+                    username: enemy.username,
+                })
+            }
+            
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -193,10 +207,14 @@ export class Game {
                 this.connection.send(s);
             }
 
-            render_sprite(ctx, game_state.my_coords.x, game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
-            for (let i = 0; i < game_state.enemies.length; i++) {
-                const enemy = game_state.enemies[i];
-                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
+            let o = translate(0, 0);
+            // render_border(ctx, t_origin.x, t_origin.y);
+            render_border(ctx, o.x, o.y);
+
+            render_sprite(ctx, t_game_state.my_coords.x, t_game_state.my_coords.y, this.getMouseDirs(), this.name, 'blue');
+            for (let i = 0; i < t_game_state.enemies.length; i++) {
+                const enemy = t_game_state.enemies[i];
+                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'red');
             }
 
             requestAnimationFrame(loop);

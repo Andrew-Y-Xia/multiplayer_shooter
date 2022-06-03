@@ -1,12 +1,4 @@
-import { Game } from './game.js'
-
-
-await $.getJSON( "./settings.json", function( data ) {
-    let SETTINGS = data;
-    console.log(SETTINGS);
-
-    window.game_settings = SETTINGS;
-});
+import { Game } from './game.js';
 
 
 $("#join-button").click(() => {
