@@ -151,15 +151,20 @@ impl Actor for PhysicsEngine {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
 
-                s.bullet_handles.retain(|handle, counter| {
-                    if *counter > 500 {
-                        s.rigid_body_set.remove(*handle, &mut s.island_manager, &mut s.collider_set, &mut s.impulse_joint_set, &mut s.multibody_joint_set, true);
-                        *counter += 1;
-                        false
-                    } else {
+                let deleted: Vec<_> = s.bullet_handles.iter().filter(|(handle, counter)| {
+                    if **counter > 500 {
+                        s.rigid_body_set.remove(**handle, &mut s.island_manager, &mut s.collider_set, &mut s.impulse_joint_set, &mut s.multibody_joint_set, true);
                         true
+                    } else {
+                        false
                     }
-                });
+                })
+                .map(|(a, b)| { (*a, *b) })
+                .collect();
+
+                for (handle, _) in deleted {
+                    s.bullet_handles.remove(&handle);
+                }
 
                 let r = PhysicsStateResponse {
                     my_coords: Coords {
