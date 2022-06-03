@@ -1,4 +1,4 @@
-import {interpolate, render_sprite, translator, render_border, render_background} from './graphics.js';
+import {interpolate, render_sprite, translator, render_border, render_background, render_bullet} from './graphics.js';
 
 
 Array.prototype.pushSorted = function(el, compareFn) {
@@ -75,6 +75,7 @@ export class Game {
             a: false,
             s: false,
             d: false,
+            click: false,
         }
 
         let keyHandlerFactory = (is_keydown_handler) => {
@@ -94,6 +95,13 @@ export class Game {
                 y: e.clientY
             };
         }
+
+        document.body.onmousedown = () => { 
+            this.keydown.click = true;
+          }
+          document.body.onmouseup = () => {
+            this.keydown.click = false;
+          }
 
         document.addEventListener("keydown", keyHandlerFactory(true), false);
         document.addEventListener("keyup", keyHandlerFactory(false), false);
@@ -180,6 +188,7 @@ export class Game {
             let t_game_state = {
                 my_coords : translate(original_game_state.my_coords.x, original_game_state.my_coords.y),
                 enemies: [],
+                bullets: []
             }
             for (let i = 0; i < original_game_state.enemies.length; i++) {
                 const enemy = original_game_state.enemies[i];
@@ -188,6 +197,10 @@ export class Game {
                     dir: enemy.dir,
                     username: enemy.username,
                 })
+            }
+            for (let i = 0; i < original_game_state.bullets.length; i++) {
+                const bullet = original_game_state.bullets[i];
+                t_game_state.bullets.push(translate(bullet.x, bullet.y))
             }
             
 
@@ -216,6 +229,11 @@ export class Game {
             for (let i = 0; i < t_game_state.enemies.length; i++) {
                 const enemy = t_game_state.enemies[i];
                 render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
+            }
+
+            for (let i = 0; i < t_game_state.bullets.length; i++) {
+                const bullet = t_game_state.bullets[i];
+                render_bullet(ctx, bullet.x, bullet.y);
             }
 
             requestAnimationFrame(loop);

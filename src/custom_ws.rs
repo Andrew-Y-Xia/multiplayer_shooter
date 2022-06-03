@@ -35,13 +35,21 @@ pub enum ClientInstruction {
         s: bool,
         d: bool,
         dir: f32,
+        click: bool,
     },
 }
 
 #[derive(Debug)]
 pub enum GameInstruction {
     JoinGame,
-    GameAction { w: bool, a: bool, s: bool, d: bool },
+    GameAction {
+        w: bool,
+        a: bool,
+        s: bool,
+        d: bool,
+        dir: f32,
+        click: bool,
+    },
 }
 
 #[derive(Message, Debug)]
@@ -68,24 +76,32 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
                     }
                 }
 
-                let mut player_info = self
-                    .state
-                    .connected_players
-                    .get_mut(&ctx.address())
-                    .unwrap();
-
                 let action = match action {
                     ClientInstruction::JoinGame { username } => {
                         // Now save our username
-                        // Move the username out and construct new game instruction
+                        let mut player_info = self
+                            .state
+                            .connected_players
+                            .get_mut(&ctx.address())
+                            .unwrap(); // Move the username out and construct new game instruction
                         player_info.username = username;
                         GameInstruction::JoinGame
                     }
-                    ClientInstruction::GameAction { w, a, s, d, dir } => {
-                        // Save the dir
-                        player_info.dir = dir;
-                        GameInstruction::GameAction { w, a, s, d }
-                    }
+                    ClientInstruction::GameAction {
+                        w,
+                        a,
+                        s,
+                        d,
+                        dir,
+                        click,
+                    } => GameInstruction::GameAction {
+                        w,
+                        a,
+                        s,
+                        d,
+                        click,
+                        dir,
+                    },
                 };
 
                 // Wrap instruction with our Actor Address (so that the physics engine can remember who's who)
@@ -117,6 +133,7 @@ struct EnemyInfo {
 struct GameResponse {
     my_coords: Coords,
     enemies: Vec<EnemyInfo>,
+    bullets: Vec<Coords>,
     timestamp: u128,
 }
 
@@ -129,15 +146,21 @@ impl Handler<PhysicsStateResponse> for Ws {
         let mut game_response = GameResponse {
             my_coords: msg.my_coords,
             enemies: vec![],
+            bullets: msg.bullets,
             timestamp: self.start_timestamp.elapsed().as_millis(),
         };
 
-        for physics_engine::EnemyInfo { coords, ws_address } in msg.enemies.iter() {
+        for physics_engine::EnemyInfo {
+            coords,
+            ws_address,
+            dir,
+        } in msg.enemies.iter()
+        {
             let player_info = self.state.connected_players.get(ws_address).unwrap();
-            let (username, dir) = (player_info.username.clone(), player_info.dir);
+            let username = player_info.username.clone();
             let enemy = EnemyInfo {
                 coords: *coords,
-                dir,
+                dir: *dir,
                 username,
             };
             game_response.enemies.push(enemy);
@@ -156,7 +179,7 @@ pub async fn index_ws(
     let resp = actix_web_actors::ws::start(
         Ws {
             state: state.clone(),
-            start_timestamp: Instant::now()
+            start_timestamp: Instant::now(),
         },
         &req,
         stream,

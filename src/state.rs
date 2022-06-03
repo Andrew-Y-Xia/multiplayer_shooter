@@ -13,14 +13,12 @@ use serde_json;
 
 pub struct PlayerInfo {
     pub username: String,
-    pub dir: f32, // Direction that the player is facing
 }
 
 impl Default for PlayerInfo {
     fn default() -> Self {
         PlayerInfo {
             username: String::new(),
-            dir: 0.0,
         }
     }
 }

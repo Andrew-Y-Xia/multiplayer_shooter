@@ -32,8 +32,15 @@ export function render_sprite(ctx, x, y, dir, name, color) {
     ctx.strokeText(name, x - width / 2, y + 40);
 }
 
-function render_bullet(ctx, x, y, color) {
-    
+export function render_bullet(ctx, x, y, color) {
+    // Make the circle first
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, 2 * Math.PI);
+    ctx.save()
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
 }
 
 export function render_border(ctx, origin_x, origin_y) {

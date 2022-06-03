@@ -5,7 +5,7 @@ use actix::{Actor, AsyncContext, Context, Handler, Message};
 use actix_web::web;
 use rapier2d::prelude::*;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,6 +23,7 @@ pub struct Coords {
 pub struct EnemyInfo {
     pub ws_address: Addr<Ws>,
     pub coords: Coords,
+    pub dir: f32,
 }
 
 #[derive(Message, Debug)]
@@ -30,6 +31,12 @@ pub struct EnemyInfo {
 pub struct PhysicsStateResponse {
     pub my_coords: Coords,
     pub enemies: Vec<EnemyInfo>,
+    pub bullets: Vec<Coords>,
+}
+
+pub struct PhysicsPlayerInfo {
+    pub handle: RigidBodyHandle,
+    pub dir: f32,
 }
 
 impl EventHandler for CustomEventHandler {
@@ -61,7 +68,8 @@ pub struct PhysicsEngine {
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
 
-    player_body_handles: HashMap<Addr<Ws>, RigidBodyHandle>,
+    player_body_handles: HashMap<Addr<Ws>, PhysicsPlayerInfo>,
+    bullet_handles: HashMap<RigidBodyHandle, u32>,
 
     state: Arc<InnerState>,
 }
@@ -83,6 +91,7 @@ impl PhysicsEngine {
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
             player_body_handles: HashMap::new(),
+            bullet_handles: HashMap::new(),
             state,
         }
     }
@@ -115,7 +124,10 @@ impl Actor for PhysicsEngine {
     // Send state every tick
     fn started(&mut self, ctx: &mut Self::Context) {
         // Bounding box
-        let (w, h) = (self.state.settings.arena_width, self.state.settings.arena_height);
+        let (w, h) = (
+            self.state.settings.arena_width,
+            self.state.settings.arena_height,
+        );
         for collider in [
             ColliderBuilder::cuboid(w, 0.1)
                 .translation(vector![0.0, 0.0])
@@ -123,9 +135,7 @@ impl Actor for PhysicsEngine {
             ColliderBuilder::cuboid(w, 0.1)
                 .translation(vector![0.0, h])
                 .build(),
-            ColliderBuilder::cuboid(w, 0.1)
-                .rotation(PI / 2.0)
-                .build(),
+            ColliderBuilder::cuboid(w, 0.1).rotation(PI / 2.0).build(),
             ColliderBuilder::cuboid(w, 0.1)
                 .rotation(PI / 2.0)
                 .translation(vector![w, 0.0])
@@ -137,9 +147,20 @@ impl Actor for PhysicsEngine {
         // Every 128th of a second, run an iteration of the physics engine and send state data to clients
         ctx.run_interval(Duration::new(0, 7812500), |s, _| {
             s.step();
-            for (address, handle) in s.player_body_handles.iter() {
+            for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
+
+                s.bullet_handles.retain(|handle, counter| {
+                    if *counter > 500 {
+                        s.rigid_body_set.remove(*handle, &mut s.island_manager, &mut s.collider_set, &mut s.impulse_joint_set, &mut s.multibody_joint_set, true);
+                        *counter += 1;
+                        false
+                    } else {
+                        true
+                    }
+                });
+
                 let r = PhysicsStateResponse {
                     my_coords: Coords {
                         x: trans.x,
@@ -150,14 +171,25 @@ impl Actor for PhysicsEngine {
                         .player_body_handles
                         .iter()
                         .filter(|(inner_address, _)| *inner_address != address)
-                        .map(|(inner_address, handle)| {
+                        .map(|(inner_address, PhysicsPlayerInfo { handle, dir })| {
                             let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
                             EnemyInfo {
                                 coords: Coords { x: t.x, y: t.y },
                                 ws_address: inner_address.clone(),
+                                dir: *dir,
                             }
                         })
                         .collect()),
+                    bullets: s
+                        .bullet_handles
+                        .iter_mut()
+                        .map(|(handle, counter)| {
+                            let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
+                            let c = Coords { x: t.x, y: t.y };
+                            *counter += 1;
+                            c
+                        })
+                        .collect(),
                 };
                 address.do_send(r);
             }
@@ -178,7 +210,8 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     .ccd_enabled(true)
                     .build();
                 let handle = self.rigid_body_set.insert(rigid_body);
-                self.player_body_handles.insert(msg.sent_from, handle);
+                self.player_body_handles
+                    .insert(msg.sent_from, PhysicsPlayerInfo { handle, dir: 0.0 });
                 let collider = ColliderBuilder::ball(20.0)
                     .density(1.0)
                     .restitution(0.7)
@@ -186,12 +219,23 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                 self.collider_set
                     .insert_with_parent(collider, handle, &mut self.rigid_body_set);
             }
-            GameInstruction::GameAction { w, a, s, d } => {
+            GameInstruction::GameAction {
+                w,
+                a,
+                s,
+                d,
+                click,
+                dir,
+            } => {
                 // TODO: Actually handle this error
                 // If a game action was sent, the player_body should be registered
-                let handle = self.player_body_handles.get(&msg.sent_from).unwrap();
+                let PhysicsPlayerInfo {
+                    handle,
+                    dir: mut_dir,
+                } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
                 let rigid_body = self.rigid_body_set.get_mut(*handle).unwrap();
                 let force: f32 = self.state.settings.impulse_force;
+                *mut_dir = dir;
 
                 if w {
                     PhysicsEngine::apply_force_from_dir(rigid_body, vector![0.0, -force])
@@ -204,6 +248,27 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                 }
                 if d {
                     PhysicsEngine::apply_force_from_dir(rigid_body, vector![force, 0.0])
+                }
+
+                if click {
+                    let trans = rigid_body.translation();
+                    let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
+                        .translation(vector![trans.x, trans.y])
+                        .linear_damping(self.state.settings.damping)
+                        .ccd_enabled(true)
+                        .linvel(vector![10.0, 10.0])
+                        .build();
+                    let handle = self.rigid_body_set.insert(rigid_body);
+                    let collider = ColliderBuilder::ball(5.0)
+                        .density(1.0)
+                        .restitution(0.9)
+                        .build();
+                    self.collider_set.insert_with_parent(
+                        collider,
+                        handle,
+                        &mut self.rigid_body_set,
+                    );
+                    self.bullet_handles.insert(handle, 0);
                 }
             }
         }
