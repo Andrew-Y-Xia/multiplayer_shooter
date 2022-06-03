@@ -145,9 +145,10 @@ impl PhysicsEngine {
             .unwrap();
         let damage = self.state.settings.bullet_damage;
         for handle in v.iter() {
-            let body = &mut self.rigid_body_set.get_mut(*handle).unwrap();
-            if damage < body.user_data {
-                body.user_data -= damage;
+            if let Some(body) = self.rigid_body_set.get_mut(*handle) {
+                if damage < body.user_data {
+                    body.user_data -= damage;
+                }
             }
         }
         v.clear();
@@ -182,28 +183,8 @@ impl Actor for PhysicsEngine {
 
         // Every 128th of a second, run an iteration of the physics engine and send state data to clients
         ctx.run_interval(Duration::new(0, 7812500), |s, _| {
-            let to_delete: Vec<_> = s
-                .bullet_handles
-                .iter_mut()
-                .map(|(handle, counter)| {
-                    *counter += 1;
-                    (handle, counter)
-                })
-                .filter(|(_handle, counter)| **counter > 500)
-                .map(|(a, b)| (*a, *b))
-                .collect();
 
-            for (handle, _) in to_delete {
-                s.rigid_body_set.remove(
-                    handle,
-                    &mut s.island_manager,
-                    &mut s.collider_set,
-                    &mut s.impulse_joint_set,
-                    &mut s.multibody_joint_set,
-                    true,
-                );
-                s.bullet_handles.remove(&handle);
-            }
+            s.step();
 
             // Decrement bullet cooldowns
             s.player_body_handles.iter_mut().for_each(
@@ -221,9 +202,21 @@ impl Actor for PhysicsEngine {
             // Decrement health
             s.decrement_health();
 
-            let mut to_delete: Vec<(Addr<Ws>, RigidBodyHandle)> = vec![];
 
-            s.step();
+            let bullets_to_delete: Vec<_> = s
+                .bullet_handles
+                .iter_mut()
+                .map(|(handle, counter)| {
+                    *counter += 1;
+                    (handle, counter)
+                })
+                .filter(|(_handle, counter)| **counter > 500)
+                .map(|(a, b)| (*a, *b))
+                .collect();
+
+
+            let mut dead_players: Vec<(Addr<Ws>, RigidBodyHandle)> = vec![];
+
             for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
@@ -231,7 +224,7 @@ impl Actor for PhysicsEngine {
                 // Game over
                 if rigid_body.user_data <= 5000 {
                     address.do_send(GameOver {});
-                    to_delete.push((address.clone(), *handle));
+                    dead_players.push((address.clone(), *handle));
                     continue;
                 }
 
@@ -269,9 +262,25 @@ impl Actor for PhysicsEngine {
                 };
                 address.do_send(r);
             }
+            
+            // DELETION STAGE
+
+
+            // delete bullets that have timed out
+            for (handle, _) in bullets_to_delete {
+                s.rigid_body_set.remove(
+                    handle,
+                    &mut s.island_manager,
+                    &mut s.collider_set,
+                    &mut s.impulse_joint_set,
+                    &mut s.multibody_joint_set,
+                    true,
+                );
+                s.bullet_handles.remove(&handle);
+            }
 
             // Delete players that have died
-            for (address, handle) in to_delete.iter() {
+            for (address, handle) in dead_players.iter() {
                 s.rigid_body_set.remove(
                     *handle,
                     &mut s.island_manager,
