@@ -171,10 +171,17 @@ impl Actor for PhysicsEngine {
             }
 
             // Decrement bullet cooldowns
-            s.player_body_handles.iter_mut().for_each(|(_, PhysicsPlayerInfo { bullet_cooldown, ..})| {
-                *bullet_cooldown -= 1;
-                *bullet_cooldown = 0.max(*bullet_cooldown);
-            });
+            s.player_body_handles.iter_mut().for_each(
+                |(
+                    _,
+                    PhysicsPlayerInfo {
+                        bullet_cooldown, ..
+                    },
+                )| {
+                    *bullet_cooldown -= 1;
+                    *bullet_cooldown = 0.max(*bullet_cooldown);
+                },
+            );
 
             s.step();
             for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
@@ -243,6 +250,22 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     .build();
                 self.collider_set
                     .insert_with_parent(collider, handle, &mut self.rigid_body_set);
+            }
+            GameInstruction::ExitGame => {
+                let PhysicsPlayerInfo {
+                    handle,
+                    dir: mut_dir,
+                    bullet_cooldown,
+                } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
+                self.rigid_body_set.remove(
+                    *handle,
+                    &mut self.island_manager,
+                    &mut self.collider_set,
+                    &mut self.impulse_joint_set,
+                    &mut self.multibody_joint_set,
+                    true,
+                );
+                self.player_body_handles.remove(&msg.sent_from);
             }
             GameInstruction::GameAction {
                 w,

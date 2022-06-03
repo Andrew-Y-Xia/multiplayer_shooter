@@ -21,6 +21,15 @@ impl Actor for Ws {
     fn started(&mut self, ctx: &mut Self::Context) {
         self.state.register(ctx.address());
     }
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        let address = ctx.address();
+        self.state.remove(&address);
+        self.state.get_physics_engine().do_send(PhysicsInstruction {
+            game_instruction: GameInstruction::ExitGame,
+            sent_from: address,
+        });
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -42,6 +51,7 @@ pub enum ClientInstruction {
 #[derive(Debug)]
 pub enum GameInstruction {
     JoinGame,
+    ExitGame,
     GameAction {
         w: bool,
         a: bool,

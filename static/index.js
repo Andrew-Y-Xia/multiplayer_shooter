@@ -8,6 +8,7 @@ $("#join-button").click(() => {
     let game = new Game("canvas1", user_name);
     setTimeout(() => {
         $("#start-panel").hide();
+        $("#canvas1").show();
         game.run();
     }, 100);
 })

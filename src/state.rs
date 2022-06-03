@@ -74,8 +74,8 @@ impl State {
 
     // Removes websocket connection
     // Called when actor stops
-    pub fn remove(&self, address: Addr<Ws>) {
-        self.connected_players.remove(&address);
+    pub fn remove(&self, address: &Addr<Ws>) {
+        self.connected_players.remove(address);
     }
 
     pub fn get_physics_engine(&self) -> &Addr<PhysicsEngine> {
