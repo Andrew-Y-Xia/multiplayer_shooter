@@ -6,12 +6,16 @@
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
-    <canvas id="canvas1" width="1000" height="500"></canvas>
-    <h1>Header!</h1>
-    <input id="name-input" type="text" placeholder="Enter your name">
-    <button id="join-button">Join Game</button>
-    <script type="module" src="game.js"></script>
-    
+    <canvas id="canvas1" width="1000"></canvas>
+
+    <div id="start-panel">
+        <h1>An incomplete multiplayer shooter</h1>
+        <input id="name-input" type="text" placeholder="Enter your name">
+        <button id="join-button">Join Game</button>
+        <p> WASD for moving, click to shoot</p>
+        <script type="module" src="game.js"></script>  
+    </div>
+
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script type="module" src="settings.js"></script> 
     <script type="module" src="index.js"></script>

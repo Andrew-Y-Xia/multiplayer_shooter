@@ -1,4 +1,4 @@
-import {interpolate, render_sprite, translator, render_border} from './graphics.js';
+import {interpolate, render_sprite, translator, render_border, render_background} from './graphics.js';
 
 
 Array.prototype.pushSorted = function(el, compareFn) {
@@ -27,8 +27,8 @@ export class Game {
     constructor(canvas_id, name) {
         this.name = name;
         this.canvas = document.getElementById(canvas_id)
-        this.canvas.width = document.body.clientWidth; //document.width is obsolete
-        this.canvas.height = document.body.clientHeight; //document.height is obsolete
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
         console.log(this.canvas.width, this.canvas.height);
         this.center = {
             x: this.canvas.width / 2,
@@ -210,11 +210,12 @@ export class Game {
             let o = translate(0, 0);
             // render_border(ctx, t_origin.x, t_origin.y);
             render_border(ctx, o.x, o.y);
+            render_background(ctx, original_game_state.my_coords.x, original_game_state.my_coords.y);
 
-            render_sprite(ctx, t_game_state.my_coords.x, t_game_state.my_coords.y, this.getMouseDirs(), this.name, 'blue');
+            render_sprite(ctx, t_game_state.my_coords.x, t_game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
             for (let i = 0; i < t_game_state.enemies.length; i++) {
                 const enemy = t_game_state.enemies[i];
-                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'red');
+                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
             }
 
             requestAnimationFrame(loop);

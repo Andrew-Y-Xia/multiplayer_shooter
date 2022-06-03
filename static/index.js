@@ -5,6 +5,9 @@ $("#join-button").click(() => {
     const user_name = $("#name-input").val();
 
     // Entry point for game
-    let graphics = new Game("canvas1", user_name);
-    setTimeout(() => graphics.run(), 100);
+    let game = new Game("canvas1", user_name);
+    setTimeout(() => {
+        $("#start-panel").hide();
+        game.run();
+    }, 100);
 })
