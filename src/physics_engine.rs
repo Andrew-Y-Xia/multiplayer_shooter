@@ -7,10 +7,12 @@ use rapier2d::prelude::*;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::f32::consts::PI;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-struct CustomEventHandler;
+struct CustomEventHandler {
+    handles_to_decrement_health: Arc<Mutex<Vec<RigidBodyHandle>>>
+}
 struct CustomPhysicsHooks;
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -23,6 +25,7 @@ pub struct Coords {
 pub struct EnemyInfo {
     pub ws_address: Addr<Ws>,
     pub coords: Coords,
+    pub health: f32,
     pub dir: f32,
 }
 
@@ -30,6 +33,7 @@ pub struct EnemyInfo {
 #[rtype(result = "()")]
 pub struct PhysicsStateResponse {
     pub my_coords: Coords,
+    pub health: f32,
     pub enemies: Vec<EnemyInfo>,
     pub bullets: Vec<Coords>,
 }
@@ -44,13 +48,22 @@ impl EventHandler for CustomEventHandler {
     fn handle_collision_event(
         &self,
         _bodies: &RigidBodySet,
-        _colliders: &ColliderSet,
-        _event: CollisionEvent,
+        colliders: &ColliderSet,
+        event: CollisionEvent,
         _contact_pair: Option<&ContactPair>,
     ) {
-        // TODO
+        if let CollisionEvent::Started(handle1, handle2, _flags) = event {
+            let mut v = self.handles_to_decrement_health.lock().unwrap();
+            if let Some(h) = colliders.get(handle1).unwrap().parent() {
+                v.push(h);
+            }
+            if let Some(h) = colliders.get(handle2).unwrap().parent() {
+                v.push(h);
+            }
+        }
     }
 }
+
 impl PhysicsHooks for CustomPhysicsHooks {}
 
 pub struct PhysicsEngine {
@@ -64,7 +77,7 @@ pub struct PhysicsEngine {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     _physics_hooks: CustomPhysicsHooks,
-    _event_handler: CustomEventHandler,
+    event_handler: CustomEventHandler,
 
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
@@ -88,7 +101,7 @@ impl PhysicsEngine {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             _physics_hooks: CustomPhysicsHooks {},
-            _event_handler: CustomEventHandler {},
+            event_handler: CustomEventHandler {handles_to_decrement_health: Arc::from(Mutex::from(vec![]))},
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
             player_body_handles: HashMap::new(),
@@ -110,14 +123,29 @@ impl PhysicsEngine {
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
             &CustomPhysicsHooks {},
-            &CustomEventHandler {},
+            &self.event_handler,
         );
     }
 
     fn apply_force_from_dir(rigid_body: &mut RigidBody, direction: Vector<Real>) {
         rigid_body.apply_impulse(direction, true);
     }
+
+    fn decrement_health(&mut self) {
+        let mut v = self.event_handler.handles_to_decrement_health.lock().unwrap();
+        let damage = self.state.settings.bullet_damage;
+        for handle in v.iter() {
+            let body = &mut self.rigid_body_set.get_mut(*handle).unwrap();
+            if damage < body.user_data {
+                body.user_data -= damage;
+                println!("{}", body.user_data);
+            }
+        }
+        v.clear();
+    }
+
 }
+
 
 impl Actor for PhysicsEngine {
     type Context = Context<Self>;
@@ -147,7 +175,7 @@ impl Actor for PhysicsEngine {
 
         // Every 128th of a second, run an iteration of the physics engine and send state data to clients
         ctx.run_interval(Duration::new(0, 7812500), |s, _| {
-            let to_deleted: Vec<_> = s
+            let to_delete: Vec<_> = s
                 .bullet_handles
                 .iter_mut()
                 .map(|(handle, counter)| {
@@ -158,7 +186,7 @@ impl Actor for PhysicsEngine {
                 .map(|(a, b)| (*a, *b))
                 .collect();
 
-            for (handle, _) in to_deleted {
+            for (handle, _) in to_delete {
                 s.rigid_body_set.remove(
                     handle,
                     &mut s.island_manager,
@@ -183,25 +211,35 @@ impl Actor for PhysicsEngine {
                 },
             );
 
+            // Decrement health
+            s.decrement_health();
+
             s.step();
             for (address, PhysicsPlayerInfo { handle, .. }) in s.player_body_handles.iter() {
                 let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
                 let trans = rigid_body.translation();
+                
+                // Game over
+                // if rigid_body.user_data <= 5000 {
+                // }
 
                 let r = PhysicsStateResponse {
                     my_coords: Coords {
                         x: trans.x,
                         y: trans.y,
                     },
+                    health: health_convert(rigid_body.user_data),
                     // Iterate through all the players and register them as enemies, exluding our current address
                     enemies: (s
                         .player_body_handles
                         .iter()
                         .filter(|(inner_address, _)| *inner_address != address)
                         .map(|(inner_address, PhysicsPlayerInfo { handle, dir, .. })| {
-                            let t = s.rigid_body_set.get_mut(*handle).unwrap().translation();
+                            let rigid_body = s.rigid_body_set.get_mut(*handle).unwrap();
+                            let t = rigid_body.translation();
                             EnemyInfo {
                                 coords: Coords { x: t.x, y: t.y },
+                                health: health_convert(rigid_body.user_data),
                                 ws_address: inner_address.clone(),
                                 dir: *dir,
                             }
@@ -230,11 +268,12 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
         match msg.game_instruction {
             // Register player body to rigid_body_set
             GameInstruction::JoinGame => {
-                let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
+                let mut rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
                     .translation(vector![100.0, 100.0])
                     .linear_damping(self.state.settings.damping)
                     .ccd_enabled(true)
                     .build();
+                rigid_body.user_data = 10000;
                 let handle = self.rigid_body_set.insert(rigid_body);
                 self.player_body_handles.insert(
                     msg.sent_from,
@@ -244,9 +283,10 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                         bullet_cooldown: 0,
                     },
                 );
-                let collider = ColliderBuilder::ball(20.0)
+                let collider = ColliderBuilder::ball(self.state.settings.ball_size)
                     .density(1.0)
                     .restitution(0.7)
+                    .active_events(ActiveEvents::COLLISION_EVENTS)
                     .build();
                 self.collider_set
                     .insert_with_parent(collider, handle, &mut self.rigid_body_set);
@@ -256,6 +296,7 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     handle,
                     dir: _mut_dir,
                     bullet_cooldown: _,
+                    ..
                 } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
                 self.rigid_body_set.remove(
                     *handle,
@@ -281,6 +322,7 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     handle,
                     dir: mut_dir,
                     bullet_cooldown,
+                    ..
                 } = self.player_body_handles.get_mut(&msg.sent_from).unwrap();
                 let rigid_body = self.rigid_body_set.get_mut(*handle).unwrap();
                 let force: f32 = self.state.settings.impulse_force;
@@ -303,17 +345,18 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     let dir = dir + PI / 2.0;
                     let bullet_speed = self.state.settings.bullet_speed;
                     let unit_velocity = vector![dir.cos(), dir.sin()];
-                    let trans = rigid_body.translation();
+                    let trans = rigid_body.translation().clone();
+                    PhysicsEngine::apply_force_from_dir(rigid_body, unit_velocity * self.state.settings.impulse_force * -5.0);
                     let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
                         .translation(vector![trans.x, trans.y] + unit_velocity * 30.0)
-                        .linear_damping(0.9)
+                        .linear_damping(0.25)
                         .ccd_enabled(true)
                         .linvel(unit_velocity * bullet_speed)
                         .build();
                     let handle = self.rigid_body_set.insert(rigid_body);
-                    let collider = ColliderBuilder::ball(7.0)
+                    let collider = ColliderBuilder::ball(self.state.settings.bullet_size)
                         .density(1.0)
-                        .restitution(0.9)
+                        .restitution(0.93)
                         .build();
                     self.collider_set.insert_with_parent(
                         collider,
@@ -322,9 +365,16 @@ impl Handler<PhysicsInstruction> for PhysicsEngine {
                     );
                     self.bullet_handles.insert(handle, 0);
 
-                    *bullet_cooldown = 25;
+                    *bullet_cooldown = 25;                  
                 }
             }
         }
     }
+}
+
+
+fn health_convert(num: u128) -> f32 {
+    let n = num.max(5000);
+    let n = ((n - 5000) as f32) / 5000.0;
+    n
 }

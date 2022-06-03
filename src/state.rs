@@ -27,10 +27,12 @@ impl Default for PlayerInfo {
 pub struct Settings {
     pub arena_width: f32,
     pub arena_height: f32,
-    pub max_health: i32,
+    pub ball_size: f32,
+    pub bullet_size: f32,
     pub bullet_speed: f32,
     pub impulse_force: f32,
     pub damping: f32,
+    pub bullet_damage: u128,
 }
 
 pub struct InnerState {

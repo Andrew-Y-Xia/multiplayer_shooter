@@ -187,6 +187,7 @@ export class Game {
             let translate = translator(original_game_state.my_coords.x, original_game_state.my_coords.y, this.center.x, this.center.y);
             let t_game_state = {
                 my_coords : translate(original_game_state.my_coords.x, original_game_state.my_coords.y),
+                health: original_game_state.health,
                 enemies: [],
                 bullets: []
             }
@@ -196,6 +197,7 @@ export class Game {
                     coords: translate(enemy.coords.x, enemy.coords.y),
                     dir: enemy.dir,
                     username: enemy.username,
+                    health: enemy.health,
                 })
             }
             for (let i = 0; i < original_game_state.bullets.length; i++) {
@@ -230,10 +232,10 @@ export class Game {
                 render_bullet(ctx, bullet.x, bullet.y, 'grey');
             }
 
-            render_sprite(ctx, t_game_state.my_coords.x, t_game_state.my_coords.y, this.getMouseDirs(), this.name, 'red');
+            render_sprite(ctx, t_game_state.my_coords.x, t_game_state.my_coords.y, this.getMouseDirs(), this.name, 'red', t_game_state.health);
             for (let i = 0; i < t_game_state.enemies.length; i++) {
                 const enemy = t_game_state.enemies[i];
-                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue');
+                render_sprite(ctx, enemy.coords.x, enemy.coords.y, enemy.dir, enemy.username, 'blue', enemy.health);
             }
 
             requestAnimationFrame(loop);

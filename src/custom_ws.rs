@@ -136,12 +136,14 @@ struct EnemyInfo {
     coords: Coords,
     dir: f32,
     username: String,
+    health: f32,
 }
 
 // Final websocket response to client
 #[derive(Debug, Serialize)]
 struct GameResponse {
     my_coords: Coords,
+    health: f32,
     enemies: Vec<EnemyInfo>,
     bullets: Vec<Coords>,
     timestamp: u128,
@@ -155,6 +157,7 @@ impl Handler<PhysicsStateResponse> for Ws {
         // Construct response to client
         let mut game_response = GameResponse {
             my_coords: msg.my_coords,
+            health: msg.health,
             enemies: vec![],
             bullets: msg.bullets,
             timestamp: self.start_timestamp.elapsed().as_millis(),
@@ -163,6 +166,7 @@ impl Handler<PhysicsStateResponse> for Ws {
         for physics_engine::EnemyInfo {
             coords,
             ws_address,
+            health,
             dir,
         } in msg.enemies.iter()
         {
@@ -170,6 +174,7 @@ impl Handler<PhysicsStateResponse> for Ws {
             let username = player_info.username.clone();
             let enemy = EnemyInfo {
                 coords: *coords,
+                health: *health,
                 dir: *dir,
                 username,
             };
